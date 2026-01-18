@@ -9,3 +9,4 @@ uml.qmodel
 include
 ComponentsDetect/model
 ComponentDiagnosticFramework/
+*.onnx
