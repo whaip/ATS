@@ -1,0 +1,207 @@
+/* Light theme: rounded corners, subtle translucency, blue accent (#0078D4). */
+
+QWidget {
+    font-size: 9pt;
+    background: #ffffff;
+    color: #1c1c1c;
+}
+
+QFrame {
+    border-radius: 5px;
+}
+
+QFrame#sidebarFrame,
+QFrame#mainFrame,
+QFrame#contentFrame,
+QFrame#projectListFrame,
+QFrame#previewFrame {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+}
+
+QLabel {
+    color: #1c1c1c;
+}
+
+QPushButton,
+QToolButton {
+    padding: 6px 12px;
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.10);
+    color: #1c1c1c;
+}
+QPushButton:hover,
+QToolButton:hover {
+    background: rgba(0, 120, 212, 0.06);
+    border-color: rgba(0, 120, 212, 0.55);
+}
+QPushButton:pressed,
+QToolButton:pressed {
+    background: rgba(0, 120, 212, 0.12);
+    border-color: rgba(0, 120, 212, 0.75);
+}
+QPushButton:checked,
+QToolButton:checked {
+    background: rgba(0, 120, 212, 0.10);
+    border-color: #0078D4;
+    color: #005fb8;
+}
+QPushButton:disabled,
+QToolButton:disabled {
+    color: rgba(28, 28, 28, 0.35);
+    background: rgba(0, 0, 0, 0.01);
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+QLineEdit,
+QTextEdit,
+QPlainTextEdit,
+QSpinBox,
+QDoubleSpinBox,
+QComboBox {
+    padding: 6px 10px;
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.00);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #1c1c1c;
+}
+QLineEdit:focus,
+QTextEdit:focus,
+QPlainTextEdit:focus,
+QSpinBox:focus,
+QDoubleSpinBox:focus,
+QComboBox:focus {
+    border-color: #0078D4;
+}
+
+QComboBox::drop-down {
+    width: 22px;
+    border: none;
+}
+QComboBox::down-arrow {
+    width: 10px;
+    height: 10px;
+}
+
+QCheckBox {
+    spacing: 8px;
+}
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+}
+
+QListWidget,
+QTreeWidget,
+QTableWidget {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.01);
+    alternate-background-color: rgba(0, 0, 0, 0.02);
+}
+QListWidget::item:hover,
+QTreeWidget::item:hover,
+QTableWidget::item:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+QListWidget::item:selected,
+QTreeWidget::item:selected,
+QTableWidget::item:selected {
+    background: rgba(0, 120, 212, 0.18);
+    color: #1c1c1c;
+}
+
+QHeaderView::section {
+    padding: 6px 8px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.02);
+}
+QTableView {
+    gridline-color: rgba(0, 0, 0, 0.10);
+    selection-background-color: rgba(0, 120, 212, 0.18);
+}
+
+QGroupBox {
+    margin-top: 10px;
+    padding-top: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 8px;
+    padding: 0 4px;
+}
+
+QMenuBar,
+QStatusBar {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+QSlider::groove:horizontal {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.10);
+}
+QSlider::sub-page:horizontal {
+    background: #0078D4;
+    border-radius: 3px;
+}
+QSlider::add-page:horizontal {
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 3px;
+}
+QSlider::handle:horizontal {
+    width: 12px;
+    margin-bottom: -3px;
+    margin-top: -3px;
+    background: #c2c2c2;
+    border-radius: 6px;
+}
+QSlider::handle:horizontal:hover {
+    background: #3a8fb7;
+}
+QSlider::handle:horizontal:pressed {
+    background: #005fb8;
+}
+
+QWidget#page1 {
+    background: #ffffff;
+}
+QFrame#deviceOverviewFrame,
+QFrame#cardJY5711,
+QFrame#cardJY5322,
+QFrame#cardJY5323,
+QFrame#cardJY8902,
+QFrame#cardInfrared {
+    border: 1px solid rgba(0, 0, 0, 0.10);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.02);
+}
+QLabel#labelDeviceTitle {
+    font-size: 18px;
+    font-weight: 600;
+}
+QLabel#labelOverviewTitle,
+QLabel#labelJY5711Title,
+QLabel#labelJY5322Title,
+QLabel#labelJY5323Title,
+QLabel#labelJY8902Title,
+QLabel#labelInfraredTitle {
+    font-weight: 600;
+    font-size: 14px;
+}
+QLabel#labelDeviceSubtitle,
+QLabel#labelJY5711Desc,
+QLabel#labelJY5322Desc,
+QLabel#labelJY5323Desc,
+QLabel#labelJY8902Desc,
+QLabel#labelInfraredDesc {
+    color: rgba(28, 28, 28, 0.60);
+}
+QLabel#labelOverviewStatus {
+    color: #0078D4;
+    font-weight: 600;
+}

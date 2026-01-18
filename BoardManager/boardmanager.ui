@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>BoardManager</class>
+ <widget class="QWidget" name="BoardManager">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>BoardManager</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_root">
+   <item>
+    <widget class="QLabel" name="labelTitle">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>32</height>
+      </size>
+     </property>
+     <property name="text">
+      <string>板卡管理</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QSplitter" name="splitterMain">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <widget class="QFrame" name="frameLeft">
+      <property name="frameShape">
+       <enum>QFrame::Shape::StyledPanel</enum>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_left">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_search">
+         <item>
+          <widget class="QLineEdit" name="lineEditSearch">
+           <property name="placeholderText">
+            <string>搜索板卡名称/型号/版本</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="buttonSearch">
+           <property name="text">
+            <string>查询</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QTableWidget" name="tableBoards">
+         <property name="columnCount">
+          <number>4</number>
+         </property>
+         <column>
+          <property name="text">
+           <string>名称</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>类型</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>版本</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>创建时间</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_boardActions">
+         <item>
+          <widget class="QPushButton" name="buttonNewBoard">
+           <property name="text">
+            <string>新建板卡</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="buttonDeleteBoard">
+           <property name="text">
+            <string>删除</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="buttonRefreshList">
+           <property name="text">
+            <string>刷新</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QFrame" name="frameMiddle">
+      <property name="frameShape">
+       <enum>QFrame::Shape::StyledPanel</enum>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_middle">
+       <item>
+        <widget class="QGroupBox" name="groupLabelEditor">
+         <property name="title">
+          <string>标签编辑</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_labelEditor">
+          <item>
+           <widget class="QWidget" name="labelEditorContainer" native="true"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QFrame" name="frameRight">
+      <property name="frameShape">
+       <enum>QFrame::Shape::StyledPanel</enum>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_right">
+       <item>
+        <widget class="QGroupBox" name="groupBoardInfo">
+         <property name="title">
+          <string>板卡信息</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_boardInfo">
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelBoardName">
+            <property name="text">
+             <string>名称</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="lineEditBoardName">
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="labelBoardModel">
+            <property name="text">
+             <string>类型</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="lineEditBoardModel">
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="labelBoardVersion">
+            <property name="text">
+             <string>版本</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLineEdit" name="lineEditBoardVersion">
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelComponentCountTitle">
+            <property name="text">
+             <string>元件个数</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QLabel" name="labelComponentCount">
+            <property name="text">
+             <string>0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="labelCreatedTitle">
+            <property name="text">
+             <string>创建时间</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QLabel" name="labelCreatedTime">
+            <property name="text">
+             <string>-</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupOtherInfo">
+         <property name="title">
+          <string>其他信息</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_otherInfo">
+          <item>
+           <widget class="QTextBrowser" name="textOtherInfo"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

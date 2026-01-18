@@ -1,0 +1,54 @@
+QWidget#FaultDiagnostic {
+    background: #14171c;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+QWidget#FaultDiagnostic QFrame#panelLeft {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+}
+
+QWidget#FaultDiagnostic QGroupBox {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    margin-top: 10px;
+}
+
+QWidget#FaultDiagnostic QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 6px;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+QWidget#FaultDiagnostic QListWidget {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    padding: 6px;
+}
+
+QWidget#FaultDiagnostic QListWidget::item {
+    padding: 6px 8px;
+    border-radius: 6px;
+}
+
+QWidget#FaultDiagnostic QListWidget::item:selected {
+    background: rgba(0, 120, 212, 0.28);
+    color: rgba(255, 255, 255, 0.98);
+}
+
+QWidget#FaultDiagnostic QWidget#thermalContainer,
+QWidget#FaultDiagnostic QWidget#plotContainer,
+QWidget#FaultDiagnostic QWidget#reportContainer {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+}
+
+QWidget#FaultDiagnostic QLabel#labelHint,
+QWidget#FaultDiagnostic QLabel#labelThermalHint {
+    color: rgba(255, 255, 255, 0.65);
+}

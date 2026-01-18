@@ -1,0 +1,51 @@
+QWidget#DataGenerateCard {
+    background: transparent;
+}
+
+QScrollArea#scrollChannels {
+    border: none;
+    background: transparent;
+}
+
+QWidget#channelsContainer {
+    background: transparent;
+}
+
+QFrame[channelCard="true"] {
+    border: 1px solid rgba(240, 240, 240, 0.6);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+QFrame[channelCard="true"] QLabel,
+QLabel#labelTitle {
+    color: #f2f2f2;
+}
+
+QLabel#labelRate,
+QLabel#labelSelectionHint {
+    color: rgba(242, 242, 242, 0.8);
+}
+
+QCheckBox {
+    spacing: 6px;
+    color: #f2f2f2;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid rgba(240, 240, 240, 0.95);
+    background: rgba(10, 10, 10, 0.6);
+}
+
+QCheckBox::indicator:checked {
+    border-color: #0078D4;
+    background: #0078D4;
+}
+
+QPushButton#btnStartOutput,
+QPushButton#btnStopOutput {
+    min-width: 96px;
+}

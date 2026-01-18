@@ -1,0 +1,16 @@
+<!DOCTYPE RCC><RCC version="1.0">
+  <qresource prefix="/">
+    <file alias="styles/default.qss">styles/default.qss</file>
+    <file alias="styles/light.qss">styles/light.qss</file>
+    <file alias="styles/componentsdetect_dark.qss">styles/componentsdetect_dark.qss</file>
+    <file alias="styles/componentsdetect_light.qss">styles/componentsdetect_light.qss</file>
+    <file alias="styles/hdcamera_dark.qss">styles/hdcamera_dark.qss</file>
+    <file alias="styles/hdcamera_light.qss">styles/hdcamera_light.qss</file>
+    <file alias="styles/datageneratecard_dark.qss">styles/datageneratecard_dark.qss</file>
+    <file alias="styles/datageneratecard_light.qss">styles/datageneratecard_light.qss</file>
+    <file alias="styles/datacapturecard_dark.qss">styles/datacapturecard_dark.qss</file>
+    <file alias="styles/datacapturecard_light.qss">styles/datacapturecard_light.qss</file>
+    <file alias="styles/faultdiagnostic_dark.qss">styles/faultdiagnostic_dark.qss</file>
+    <file alias="styles/faultdiagnostic_light.qss">styles/faultdiagnostic_light.qss</file>
+  </qresource>
+</RCC>

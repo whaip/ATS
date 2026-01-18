@@ -1,0 +1,1112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>722</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>ATS</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="rootLayout">
+    <property name="spacing">
+     <number>12</number>
+    </property>
+    <property name="leftMargin">
+     <number>12</number>
+    </property>
+    <property name="topMargin">
+     <number>12</number>
+    </property>
+    <property name="rightMargin">
+     <number>12</number>
+    </property>
+    <property name="bottomMargin">
+     <number>12</number>
+    </property>
+    <item>
+     <widget class="QFrame" name="sidebarFrame">
+      <property name="minimumSize">
+       <size>
+        <width>120</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>160</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="frameShape">
+       <enum>QFrame::Shape::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Shadow::Raised</enum>
+      </property>
+      <layout class="QVBoxLayout" name="sidebarLayout">
+       <property name="spacing">
+        <number>8</number>
+       </property>
+       <item>
+        <spacer name="sidebarTopSpacer">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>6</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QWidget" name="widget" native="true">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="cursor">
+          <cursorShape>PointingHandCursor</cursorShape>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout">
+          <item>
+           <widget class="QToolButton" name="navMaintain">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>维护</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="navSetting">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>设置</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="FaultDiagnostic">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>故障诊断</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="navIRCamera">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>测温</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="btnDataGenerateCard">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>数据生成</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="btnDataCaptureCard">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>数据采集</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="sidebarBottomSpacer">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QFrame" name="mainFrame">
+      <property name="frameShape">
+       <enum>QFrame::Shape::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Shadow::Raised</enum>
+      </property>
+      <layout class="QVBoxLayout" name="mainLayout">
+       <property name="spacing">
+        <number>12</number>
+       </property>
+       <item>
+        <widget class="QFrame" name="tabFrame">
+         <property name="frameShape">
+          <enum>QFrame::Shape::NoFrame</enum>
+         </property>
+         <layout class="QHBoxLayout" name="tabLayout">
+          <property name="spacing">
+           <number>10</number>
+          </property>
+          <item>
+           <widget class="QToolButton" name="tabErrorLog">
+            <property name="text">
+             <string>错误日志</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="tabBoardManager">
+            <property name="text">
+             <string>板卡管理</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="tabProjectInfo">
+            <property name="text">
+             <string>项目信息</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="tabReferenceRange">
+            <property name="text">
+             <string>参考范围</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="tabDetectMode">
+            <property name="text">
+             <string>检测模式</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="tabStatistics">
+            <property name="text">
+             <string>统计</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="tabFlagRule">
+            <property name="text">
+             <string>标志与规则</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="tabSpacer">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QFrame" name="contentFrame">
+         <property name="frameShape">
+          <enum>QFrame::Shape::StyledPanel</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Shadow::Raised</enum>
+         </property>
+         <layout class="QHBoxLayout" name="contentLayout" stretch="3,1">
+          <property name="spacing">
+           <number>12</number>
+          </property>
+          <item>
+           <widget class="QFrame" name="projectListFrame">
+            <property name="minimumSize">
+             <size>
+              <width>240</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::Shape::StyledPanel</enum>
+            </property>
+            <layout class="QVBoxLayout" name="projectListLayout">
+             <item>
+              <widget class="QStackedWidget" name="pagesStack">
+               <widget class="QWidget" name="page1">
+                <property name="windowTitle">
+                 <string>page1</string>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true"/>
+                </property>
+                <layout class="QVBoxLayout" name="page1Layout">
+                 <property name="spacing">
+                  <number>12</number>
+                 </property>
+                 <item>
+                  <widget class="QLabel" name="labelDeviceTitle">
+                   <property name="text">
+                    <string>设备初始化</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="labelDeviceSubtitle">
+                   <property name="text">
+                    <string>初始化并检查关键设备状态</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QFrame" name="deviceOverviewFrame">
+                   <property name="frameShape">
+                    <enum>QFrame::Shape::StyledPanel</enum>
+                   </property>
+                   <layout class="QHBoxLayout" name="deviceOverviewLayout">
+                    <property name="leftMargin">
+                     <number>12</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>10</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>12</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>10</number>
+                    </property>
+                    <item>
+                     <widget class="QLabel" name="labelOverviewTitle">
+                      <property name="text">
+                       <string>当前状态</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <spacer name="overviewSpacer">
+                      <property name="orientation">
+                       <enum>Qt::Orientation::Horizontal</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                       <size>
+                        <width>40</width>
+                        <height>20</height>
+                       </size>
+                      </property>
+                     </spacer>
+                    </item>
+                    <item>
+                     <widget class="QLabel" name="labelOverviewStatus">
+                      <property name="text">
+                       <string>未初始化</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QFrame" name="deviceGridFrame">
+                   <property name="frameShape">
+                    <enum>QFrame::Shape::NoFrame</enum>
+                   </property>
+                   <layout class="QGridLayout" name="deviceGridLayout">
+                    <property name="spacing">
+                     <number>12</number>
+                    </property>
+                    <item row="0" column="0">
+                     <widget class="QFrame" name="cardJY5711">
+                      <property name="frameShape">
+                       <enum>QFrame::Shape::StyledPanel</enum>
+                      </property>
+                      <layout class="QVBoxLayout" name="cardJY5711Layout">
+                       <property name="leftMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>12</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelJY5711Title">
+                         <property name="text">
+                          <string>JY5711</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLabel" name="labelJY5711Desc">
+                         <property name="text">
+                          <string>数据生成模块</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLabel" name="labelJY5711Status">
+                         <property name="text">
+                          <string>状态：未初始化</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="jy5711Buttons">
+                         <item>
+                          <widget class="QPushButton" name="btnInitJY5711">
+                           <property name="text">
+                            <string>初始化</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QToolButton" name="btnJY5711Detail">
+                           <property name="text">
+                            <string>详情</string>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                    <item row="0" column="1">
+                     <widget class="QFrame" name="cardJY5322">
+                      <property name="frameShape">
+                       <enum>QFrame::Shape::StyledPanel</enum>
+                      </property>
+                      <layout class="QVBoxLayout" name="cardJY5322Layout">
+                       <property name="leftMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>12</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelJY5322Title">
+                         <property name="text">
+                          <string>JY5322</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLabel" name="labelJY5322Desc">
+                         <property name="text">
+                          <string>电压数据采集卡</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLabel" name="labelJY5322Status">
+                         <property name="text">
+                          <string>状态：未初始化</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="jy5322Buttons">
+                         <item>
+                          <widget class="QPushButton" name="btnInitJY5322">
+                           <property name="text">
+                            <string>初始化</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QToolButton" name="btnJY5322Detail">
+                           <property name="text">
+                            <string>详情</string>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                    <item row="1" column="0">
+                     <widget class="QFrame" name="cardJY5323">
+                      <property name="frameShape">
+                       <enum>QFrame::Shape::StyledPanel</enum>
+                      </property>
+                      <layout class="QVBoxLayout" name="cardJY5323Layout">
+                       <property name="leftMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>12</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelJY5323Title">
+                         <property name="text">
+                          <string>JY5323</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLabel" name="labelJY5323Desc">
+                         <property name="text">
+                          <string>电流采集卡</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLabel" name="labelJY5323Status">
+                         <property name="text">
+                          <string>状态：未初始化</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="jy5323Buttons">
+                         <item>
+                          <widget class="QPushButton" name="btnInitJY5323">
+                           <property name="text">
+                            <string>初始化</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QToolButton" name="btnJY5323Detail">
+                           <property name="text">
+                            <string>详情</string>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                    <item row="1" column="1">
+                     <widget class="QFrame" name="cardJY8902">
+                      <property name="frameShape">
+                       <enum>QFrame::Shape::StyledPanel</enum>
+                      </property>
+                      <layout class="QVBoxLayout" name="cardJY8902Layout">
+                       <property name="leftMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>12</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelJY8902Title">
+                         <property name="text">
+                          <string>JY8902</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLabel" name="labelJY8902Desc">
+                         <property name="text">
+                          <string>万用表</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLabel" name="labelJY8902Status">
+                         <property name="text">
+                          <string>状态：未初始化</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="jy8902Buttons">
+                         <item>
+                          <widget class="QPushButton" name="btnInitJY8902">
+                           <property name="text">
+                            <string>初始化</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QToolButton" name="btnJY8902Detail">
+                           <property name="text">
+                            <string>详情</string>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                    <item row="2" column="0" colspan="2">
+                     <widget class="QFrame" name="cardInfrared">
+                      <property name="frameShape">
+                       <enum>QFrame::Shape::StyledPanel</enum>
+                      </property>
+                      <layout class="QHBoxLayout" name="cardInfraredLayout">
+                       <property name="leftMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>12</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>12</number>
+                       </property>
+                       <item>
+                        <layout class="QVBoxLayout" name="infraredInfoLayout">
+                         <item>
+                          <widget class="QLabel" name="labelInfraredTitle">
+                           <property name="text">
+                            <string>红外摄像头</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelInfraredDesc">
+                           <property name="text">
+                            <string>RTNet 红外成像设备</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelInfraredStatus">
+                           <property name="text">
+                            <string>状态：未初始化</string>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                       <item>
+                        <spacer name="infraredSpacer">
+                         <property name="orientation">
+                          <enum>Qt::Orientation::Horizontal</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>40</width>
+                           <height>20</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="infraredButtons">
+                         <item>
+                          <widget class="QPushButton" name="btnInitInfrared">
+                           <property name="text">
+                            <string>初始化</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QToolButton" name="btnInfraredDetail">
+                           <property name="text">
+                            <string>详情</string>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                 <item>
+                  <spacer name="devicePageSpacer">
+                   <property name="orientation">
+                    <enum>Qt::Orientation::Vertical</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>20</width>
+                     <height>40</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                </layout>
+               </widget>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QScrollArea" name="formScrollArea">
+            <property name="widgetResizable">
+             <bool>true</bool>
+            </property>
+            <widget class="QWidget" name="formContainer">
+             <property name="geometry">
+              <rect>
+               <x>0</x>
+               <y>0</y>
+               <width>266</width>
+               <height>511</height>
+              </rect>
+             </property>
+             <layout class="QGridLayout" name="formGrid">
+              <property name="horizontalSpacing">
+               <number>18</number>
+              </property>
+              <property name="verticalSpacing">
+               <number>12</number>
+              </property>
+              <item row="0" column="0" rowspan="3">
+               <widget class="QTableWidget" name="logTable">
+                <property name="editTriggers">
+                 <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                </property>
+                <property name="alternatingRowColors">
+                 <bool>true</bool>
+                </property>
+                <property name="selectionMode">
+                 <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+                </property>
+                <property name="selectionBehavior">
+                 <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                </property>
+                <property name="showGrid">
+                 <bool>true</bool>
+                </property>
+                <property name="rowCount">
+                 <number>0</number>
+                </property>
+                <property name="columnCount">
+                 <number>3</number>
+                </property>
+                <column>
+                 <property name="text">
+                  <string>时间</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string>等级</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string>内容</string>
+                 </property>
+                </column>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QFrame" name="bottomFrame">
+         <property name="frameShape">
+          <enum>QFrame::Shape::NoFrame</enum>
+         </property>
+         <layout class="QHBoxLayout" name="bottomLayout">
+          <property name="spacing">
+           <number>10</number>
+          </property>
+          <item>
+           <widget class="QToolButton" name="btnPagePrev">
+            <property name="text">
+             <string>&lt;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QWidget" name="pageButtonsContainer" native="true">
+            <layout class="QHBoxLayout" name="pageButtonsLayout">
+             <property name="spacing">
+              <number>6</number>
+             </property>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="btnPageNext">
+            <property name="text">
+             <string>&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelPageInfo">
+            <property name="text">
+             <string>共9页</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelJump">
+            <property name="text">
+             <string>转到</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="editJumpPage">
+            <property name="maximumSize">
+             <size>
+              <width>60</width>
+              <height>16777215</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnGo">
+            <property name="text">
+             <string>GO</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="bottomSpacer">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnWashCommon">
+            <property name="text">
+             <string>清洗液通用设置</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnDetectGroup">
+            <property name="text">
+             <string>检测组合设置</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnAddProject">
+            <property name="text">
+             <string>添加项目</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnDeleteProject">
+            <property name="text">
+             <string>删除项目</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnBarcodeInput">
+            <property name="text">
+             <string>条码录入</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1280</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menu">
+    <property name="title">
+     <string>文件</string>
+    </property>
+    <addaction name="actionl"/>
+    <addaction name="actiong"/>
+    <addaction name="separator"/>
+    <addaction name="actionsss"/>
+    <addaction name="separator"/>
+    <addaction name="actionlll"/>
+   </widget>
+   <widget class="QMenu" name="menu_2">
+    <property name="title">
+     <string>系统</string>
+    </property>
+    <addaction name="actionf"/>
+    <addaction name="actionf_2"/>
+    <addaction name="separator"/>
+    <addaction name="actionf_3"/>
+    <addaction name="separator"/>
+    <addaction name="actionf_4"/>
+   </widget>
+   <widget class="QMenu" name="menu_3">
+    <property name="title">
+     <string>工具</string>
+    </property>
+    <addaction name="actionxiangji"/>
+    <addaction name="actionpcb"/>
+    <addaction name="actionpcb_2"/>
+   </widget>
+   <widget class="QMenu" name="menu_4">
+    <property name="title">
+     <string>帮助</string>
+    </property>
+    <addaction name="actionguanyu"/>
+   </widget>
+   <widget class="QMenu" name="menu_5">
+    <property name="title">
+     <string>主题</string>
+    </property>
+    <addaction name="DarkTheme"/>
+    <addaction name="LightTheme"/>
+   </widget>
+   <addaction name="menu"/>
+   <addaction name="menu_2"/>
+   <addaction name="menu_3"/>
+   <addaction name="menu_4"/>
+   <addaction name="menu_5"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionl">
+   <property name="text">
+    <string>加载测试序列</string>
+   </property>
+  </action>
+  <action name="actiong">
+   <property name="text">
+    <string>保存测试序列</string>
+   </property>
+  </action>
+  <action name="actiong_2">
+   <property name="text">
+    <string>g</string>
+   </property>
+  </action>
+  <action name="actionsss">
+   <property name="text">
+    <string>导出结果</string>
+   </property>
+  </action>
+  <action name="actionlll">
+   <property name="text">
+    <string>退出</string>
+   </property>
+  </action>
+  <action name="actionf">
+   <property name="text">
+    <string>初始化设备</string>
+   </property>
+  </action>
+  <action name="actionf_2">
+   <property name="text">
+    <string>关闭设备</string>
+   </property>
+  </action>
+  <action name="actionf_3">
+   <property name="text">
+    <string>设备管理器测试</string>
+   </property>
+  </action>
+  <action name="actionf_4">
+   <property name="text">
+    <string>接线引导</string>
+   </property>
+  </action>
+  <action name="actionxiangji">
+   <property name="text">
+    <string>相机管理</string>
+   </property>
+  </action>
+  <action name="actionpcb">
+   <property name="text">
+    <string>板卡管理</string>
+   </property>
+  </action>
+  <action name="actionpcb_2">
+   <property name="text">
+    <string>板卡综合分析</string>
+   </property>
+  </action>
+  <action name="actionguanyu">
+   <property name="text">
+    <string>关于</string>
+   </property>
+  </action>
+  <action name="DarkTheme">
+   <property name="text">
+    <string>深色主题</string>
+   </property>
+  </action>
+  <action name="LightTheme">
+   <property name="text">
+    <string>浅色主题</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

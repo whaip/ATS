@@ -1,0 +1,638 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ComponentsDetect</class>
+ <widget class="QWidget" name="ComponentsDetect">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>ComponentsDetect</string>
+  </property>
+  <layout class="QHBoxLayout" name="horizontalLayout_main" stretch="1,3">
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout_left">
+     <item>
+      <widget class="QFrame" name="frameStatusImage">
+       <layout class="QHBoxLayout" name="horizontalLayout_statusImage">
+        <item>
+         <widget class="QFrame" name="frameIconImage">
+          <property name="minimumSize">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string>QFrame#frameIconImage { background-color: #4aa3df; border-radius: 3px; }</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="usepcbextract">
+          <property name="text">
+           <string>应用PCB区域提取</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QFrame" name="frameStatusCamera">
+       <layout class="QHBoxLayout" name="horizontalLayout_statusCamera">
+        <item>
+         <widget class="QFrame" name="frameIconCamera">
+          <property name="minimumSize">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string>QFrame#frameIconCamera { background-color: #5cb85c; border-radius: 3px; }</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelCameraStatus">
+          <property name="text">
+           <string>摄像头状态</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_camera">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="onoroff">
+          <property name="text">
+           <string>开始识别</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QFrame" name="frameStatusModel">
+       <layout class="QHBoxLayout" name="horizontalLayout_statusModel">
+        <item>
+         <widget class="QFrame" name="frameIconModel">
+          <property name="minimumSize">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string>QFrame#frameIconModel { background-color: #f0ad4e; border-radius: 3px; }</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelModelStatus">
+          <property name="text">
+           <string>默认模型</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_status">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelMonitorStatus">
+          <property name="text">
+           <string>监测中</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QFrame" name="frameMonitorIndicator">
+          <property name="minimumSize">
+           <size>
+            <width>14</width>
+            <height>14</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>14</width>
+            <height>14</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string>QFrame#frameMonitorIndicator { background-color: #2ecc71; border-radius: 7px; }</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_prompt">
+       <item>
+        <widget class="QLabel" name="labelPromptTitle">
+         <property name="styleSheet">
+          <string>color: #d9534f; font-weight: bold;</string>
+         </property>
+         <property name="text">
+          <string>提示信息:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="labelPromptValue">
+         <property name="styleSheet">
+          <string>color: #d9534f;</string>
+         </property>
+         <property name="text">
+          <string>模型加载</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_prompt">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <widget class="QSlider" name="sliderProgress">
+       <property name="minimum">
+        <number>0</number>
+       </property>
+       <property name="maximum">
+        <number>100</number>
+       </property>
+       <property name="singleStep">
+        <number>5</number>
+       </property>
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="tickPosition">
+        <enum>QSlider::TickPosition::TicksBothSides</enum>
+       </property>
+       <property name="tickInterval">
+        <number>5</number>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="groupBoxInfo">
+       <property name="title">
+        <string>显示</string>
+       </property>
+       <layout class="QFormLayout" name="formLayout_info">
+        <item row="0" column="0">
+         <widget class="QLabel" name="labelTimeTitle">
+          <property name="text">
+           <string>用时:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLabel" name="labelTimeValue">
+          <property name="styleSheet">
+           <string>color: #d9534f; font-weight: bold;</string>
+          </property>
+          <property name="text">
+           <string>0.21 s</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="labelCountTitle">
+          <property name="text">
+           <string>目标个数:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLabel" name="labelCountValue">
+          <property name="text">
+           <string>1</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="labelSelectTitle">
+          <property name="text">
+           <string>选择对象:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QComboBox" name="comboSelect">
+          <item>
+           <property name="text">
+            <string>所有对象</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="labelClassTitle">
+          <property name="text">
+           <string>类别:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QLabel" name="labelClassValue">
+          <property name="text">
+           <string>PCB</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="labelConfidenceTitle">
+          <property name="text">
+           <string>置信度:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QLabel" name="labelConfidenceValue">
+          <property name="text">
+           <string>0.71</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="labelBoxTitle">
+          <property name="text">
+           <string>标记框:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <layout class="QGridLayout" name="gridLayout_box">
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelXminTitle">
+            <property name="text">
+             <string>xmin:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLabel" name="labelXminValue">
+            <property name="text">
+             <string>312</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QLabel" name="labelYminTitle">
+            <property name="text">
+             <string>ymin:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QLabel" name="labelYminValue">
+            <property name="text">
+             <string>337</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="labelXmaxTitle">
+            <property name="text">
+             <string>xmax:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLabel" name="labelXmaxValue">
+            <property name="text">
+             <string>1016</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QLabel" name="labelYmaxTitle">
+            <property name="text">
+             <string>ymax:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QLabel" name="labelYmaxValue">
+            <property name="text">
+             <string>713</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="labelOverlayTitle">
+          <property name="text">
+           <string>标签显示:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="QWidget" name="widgetOverlayOptions" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_overlayOptions">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QCheckBox" name="checkShowLabelText">
+             <property name="text">
+              <string>标签文本</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="checkShowClassId">
+             <property name="text">
+              <string>类别ID</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="checkShowConfidence">
+             <property name="text">
+              <string>置信度</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_overlayOptions">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="groupBoxCameraSettings">
+       <property name="title">
+        <string>相机设置</string>
+       </property>
+       <layout class="QFormLayout" name="formLayout_camera">
+        <item row="0" column="0">
+         <widget class="QLabel" name="labelCam">
+          <property name="text">
+           <string>摄像头:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QComboBox" name="comboCamera"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="labelRes">
+          <property name="text">
+           <string>分辨率:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="comboResolution"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="labelFmt">
+          <property name="text">
+           <string>像素格式:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QComboBox" name="comboPixelFormat"/>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="labelFps">
+          <property name="text">
+           <string>帧率:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QComboBox" name="comboFps"/>
+        </item>
+        <item row="4" column="0" colspan="2">
+         <widget class="QPushButton" name="btnApplyCamera">
+          <property name="text">
+           <string>应用相机设置</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <spacer name="verticalSpacer_left">
+       <property name="orientation">
+        <enum>Qt::Orientation::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout_right">
+     <item>
+      <widget class="QLabel" name="labelTitle">
+       <property name="font">
+        <font>
+         <pointsize>16</pointsize>
+         <bold>true</bold>
+        </font>
+       </property>
+       <property name="text">
+        <string>基于YOLOv10的PCB元器件检测工具</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSplitter" name="splitterPreviewResults">
+       <property name="orientation">
+        <enum>Qt::Orientation::Vertical</enum>
+       </property>
+       <widget class="QGroupBox" name="groupBoxPreview">
+        <property name="title">
+         <string>显示</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_preview">
+         <item>
+          <widget class="ZoomableGraphicsView" name="graphicsViewPreview">
+           <property name="minimumSize">
+            <size>
+             <width>640</width>
+             <height>360</height>
+            </size>
+           </property>
+           <property name="frameShape">
+            <enum>QFrame::Shape::Box</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Shadow::Sunken</enum>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QTableWidget" name="tableResults">
+        <property name="editTriggers">
+         <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+        </property>
+        <property name="selectionBehavior">
+         <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+        </property>
+        <property name="rowCount">
+         <number>0</number>
+        </property>
+        <property name="columnCount">
+         <number>8</number>
+        </property>
+        <column>
+         <property name="text">
+          <string>序号</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>画面标识</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>类别</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>置信度</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>xmin</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>ymin</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>xmax</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>ymax</string>
+         </property>
+        </column>
+       </widget>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ZoomableGraphicsView</class>
+   <extends>QGraphicsView</extends>
+   <header>HDCamera/zoomablegraphicsview.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

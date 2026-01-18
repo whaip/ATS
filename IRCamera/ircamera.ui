@@ -1,0 +1,242 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>IRCamera</class>
+ <widget class="QWidget" name="IRCamera">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>IR Camera</string>
+  </property>
+  <layout class="QHBoxLayout" name="horizontalLayout_main">
+   <item>
+    <widget class="QSplitter" name="splitterMain">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <widget class="QWidget" name="leftPanel">
+      <property name="minimumSize">
+       <size>
+        <width>340</width>
+        <height>0</height>
+       </size>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_left">
+       <item>
+        <widget class="QGroupBox" name="groupControls">
+         <property name="title">
+          <string>测温工具</string>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_controls">
+          <item>
+           <widget class="QPushButton" name="btnAddPoint">
+            <property name="text">
+             <string>添加点</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnAddBox">
+            <property name="text">
+             <string>添加框</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupPoints">
+         <property name="title">
+          <string>点列表</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_points">
+          <item>
+           <widget class="QTableWidget" name="tablePoints">
+            <property name="columnCount">
+             <number>4</number>
+            </property>
+            <column>
+             <property name="text">
+              <string>ID</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>X</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Y</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>温度</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnDeletePoint">
+            <property name="text">
+             <string>删除点</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupBoxes">
+         <property name="title">
+          <string>框列表</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_boxes">
+          <item>
+           <widget class="QTableWidget" name="tableBoxes">
+            <property name="columnCount">
+             <number>8</number>
+            </property>
+            <column>
+             <property name="text">
+              <string>ID</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>X</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Y</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>宽</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>高</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>最低</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>最高</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>平均</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnDeleteBox">
+            <property name="text">
+             <string>删除框</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupStats">
+         <property name="title">
+          <string>统计数据</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_stats">
+          <item>
+           <widget class="QTableWidget" name="tableStats">
+            <property name="columnCount">
+             <number>2</number>
+            </property>
+            <column>
+             <property name="text">
+              <string>指标</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>数值</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer_left">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="rightPanel">
+      <layout class="QVBoxLayout" name="verticalLayout_right">
+       <item>
+        <widget class="QLabel" name="labelTitle">
+         <property name="text">
+          <string>红外温度图像</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QFrame" name="frameView">
+         <property name="frameShape">
+          <enum>QFrame::Shape::StyledPanel</enum>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_view">
+          <item>
+           <widget class="QWidget" name="graphicsContainer" native="true"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="labelHint">
+         <property name="text">
+          <string>提示：添加点后点击图像，添加框后拖拽绘制。</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

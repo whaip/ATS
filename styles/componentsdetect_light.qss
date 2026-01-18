@@ -1,0 +1,38 @@
+/* ComponentsDetect: status frames + minor tweaks for light theme. */
+
+QWidget#ComponentsDetect QFrame#frameStatusImage,
+QWidget#ComponentsDetect QFrame#frameStatusCamera,
+QWidget#ComponentsDetect QFrame#frameStatusModel {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
+}
+
+QWidget#ComponentsDetect QFrame#frameStatusImage QLabel,
+QWidget#ComponentsDetect QFrame#frameStatusCamera QLabel,
+QWidget#ComponentsDetect QFrame#frameStatusModel QLabel {
+    background: transparent;
+    color: rgba(0, 0, 0, 0.84);
+}
+
+QWidget#ComponentsDetect QFrame#frameStatusImage QPushButton,
+QWidget#ComponentsDetect QFrame#frameStatusCamera QPushButton {
+    background: rgba(255, 255, 255, 1.0);
+    color: rgba(0, 0, 0, 0.86);
+    border: 1px solid rgba(0, 0, 0, 0.16);
+    border-radius: 6px;
+    padding: 4px 10px;
+}
+
+QWidget#ComponentsDetect QFrame#frameStatusImage QPushButton:hover,
+QWidget#ComponentsDetect QFrame#frameStatusCamera QPushButton:hover {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 120, 212, 0.65);
+}
+
+QWidget#ComponentsDetect QFrame#frameStatusImage QPushButton:checked,
+QWidget#ComponentsDetect QFrame#frameStatusCamera QPushButton:checked {
+    background: rgba(0, 120, 212, 0.14);
+    border-color: rgba(0, 120, 212, 0.85);
+    color: rgba(0, 0, 0, 0.92);
+}

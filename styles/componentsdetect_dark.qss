@@ -1,0 +1,62 @@
+/* ComponentsDetect: improve border contrast for dark theme only. */
+
+QWidget#ComponentsDetect QWidget#leftPanel,
+QWidget#ComponentsDetect QWidget#rightPanel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+}
+
+QWidget#ComponentsDetect QGroupBox {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+QWidget#ComponentsDetect QTableWidget,
+QWidget#ComponentsDetect QGraphicsView#graphicsViewPreview {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+}
+
+/* Status frames (dark theme): readable and consistent. */
+QWidget#ComponentsDetect QFrame#frameStatusImage,
+QWidget#ComponentsDetect QFrame#frameStatusCamera,
+QWidget#ComponentsDetect QFrame#frameStatusModel {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 8px;
+}
+
+QWidget#ComponentsDetect QFrame#frameStatusImage QLabel,
+QWidget#ComponentsDetect QFrame#frameStatusCamera QLabel,
+QWidget#ComponentsDetect QFrame#frameStatusModel QLabel {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+QWidget#ComponentsDetect QFrame#frameStatusImage QPushButton,
+QWidget#ComponentsDetect QFrame#frameStatusCamera QPushButton {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 6px;
+    padding: 4px 10px;
+}
+
+QWidget#ComponentsDetect QFrame#frameStatusImage QPushButton:hover,
+QWidget#ComponentsDetect QFrame#frameStatusCamera QPushButton:hover {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(0, 120, 212, 0.70);
+}
+
+QWidget#ComponentsDetect QFrame#frameStatusImage QPushButton:checked,
+QWidget#ComponentsDetect QFrame#frameStatusCamera QPushButton:checked {
+    background: rgba(0, 120, 212, 0.28);
+    border-color: rgba(0, 120, 212, 0.90);
+    color: rgba(255, 255, 255, 0.98);
+}
+
+QWidget#ComponentsDetect QFrame#frameStatusImage QPushButton:pressed,
+QWidget#ComponentsDetect QFrame#frameStatusCamera QPushButton:pressed {
+    background: rgba(0, 120, 212, 0.18);
+    border-color: rgba(0, 120, 212, 0.95);
+}
