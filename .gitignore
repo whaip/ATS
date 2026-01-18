@@ -7,3 +7,5 @@ JYDevice
 uml.md
 uml.qmodel
 include
+ComponentsDetect/model
+ComponentDiagnosticFramework/
