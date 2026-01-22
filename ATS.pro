@@ -58,6 +58,7 @@ HEADERS += \
     ComponentsDetect/yolostationclient.h \
     FaultDiagnostic/configurationwindow.h \
     FaultDiagnostic/faultdiagnostic.h \
+    FaultDiagnostic/testplan.h \
     HDCamera/hdcamera.h \
     HDCamera/camerastation.h \
     HDCamera/camerastationclient.h \
@@ -75,6 +76,7 @@ HEADERS += \
     IODevices/JYDevices/5711waveformconfig.h \
     IODevices/JYDevices/jydevicetype.h \
     IODevices/JYDevices/jythreadmanager.h \
+    IODevices/portdefinitions.h \
     IODevices/uestcqcustomplot.h \
     IRCamera/ircamera.h \
     IRCamera/ircamerastation.h \

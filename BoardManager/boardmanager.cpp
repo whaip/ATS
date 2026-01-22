@@ -20,13 +20,18 @@
 #include <QImageReader>
 #include <QLabel>
 #include <QMessageBox>
-#include <QJsonObject>
 #include <QSet>
 #include <QByteArray>
 #include <QAbstractItemView>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
 #include <QResizeEvent>
+#include <QPlainTextEdit>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonParseError>
+#include <QJsonValue>
 
 #include <algorithm>
 #include <exception>
@@ -51,6 +56,60 @@ cv::Mat qimageToBgrMat(const QImage &img)
     cv::Mat bgr;
     cv::cvtColor(rgbMat, bgr, cv::COLOR_RGB2BGR);
     return bgr.clone();
+}
+
+QJsonObject rectToJson(const QRectF &rect)
+{
+    QJsonObject obj;
+    obj.insert(QStringLiteral("x"), rect.x());
+    obj.insert(QStringLiteral("y"), rect.y());
+    obj.insert(QStringLiteral("w"), rect.width());
+    obj.insert(QStringLiteral("h"), rect.height());
+    return obj;
+}
+
+QRectF rectFromJson(const QJsonObject &obj)
+{
+    return QRectF(obj.value(QStringLiteral("x")).toDouble(),
+                  obj.value(QStringLiteral("y")).toDouble(),
+                  obj.value(QStringLiteral("w")).toDouble(),
+                  obj.value(QStringLiteral("h")).toDouble());
+}
+
+QJsonObject pointToJson(const QPointF &point)
+{
+    QJsonObject obj;
+    obj.insert(QStringLiteral("x"), point.x());
+    obj.insert(QStringLiteral("y"), point.y());
+    return obj;
+}
+
+QPointF pointFromJson(const QJsonObject &obj)
+{
+    return QPointF(obj.value(QStringLiteral("x")).toDouble(),
+                   obj.value(QStringLiteral("y")).toDouble());
+}
+
+QJsonObject temperatureSpecToJson(const TemperatureSpec &spec)
+{
+    QJsonObject obj;
+    obj.insert(QStringLiteral("monitorPoint"), pointToJson(spec.MonitorPoint));
+    obj.insert(QStringLiteral("monitorPosition"), rectToJson(spec.MonitorPosition));
+    obj.insert(QStringLiteral("alarmThresholdC"), spec.alarmThresholdC);
+    obj.insert(QStringLiteral("needContinuousCapture"), spec.needContinuousCapture);
+    obj.insert(QStringLiteral("captureMode"), spec.captureMode);
+    return obj;
+}
+
+TemperatureSpec temperatureSpecFromJson(const QJsonObject &obj)
+{
+    TemperatureSpec spec;
+    spec.MonitorPoint = pointFromJson(obj.value(QStringLiteral("monitorPoint")).toObject());
+    spec.MonitorPosition = rectFromJson(obj.value(QStringLiteral("monitorPosition")).toObject());
+    spec.alarmThresholdC = obj.value(QStringLiteral("alarmThresholdC")).toDouble(spec.alarmThresholdC);
+    spec.needContinuousCapture = obj.value(QStringLiteral("needContinuousCapture")).toBool(spec.needContinuousCapture);
+    spec.captureMode = obj.value(QStringLiteral("captureMode")).toString();
+    return spec;
 }
 }
 
@@ -118,28 +177,24 @@ void BoardManager::loadBoardsFromStorage()
     for (const auto &board : m_dataManager.boards()) {
         BoardEntry entry;
         entry.name = board.name;
-        entry.model = board.model;
+        entry.model = board.boardId;
         entry.version = board.version;
         entry.created = board.createdAt;
         entry.sourcePath = board.imagePath;
 
         QVector<CompLabel> components;
-        for (const auto &plan : m_dataManager.plans()) {
-            if (plan.boardName.compare(board.name, Qt::CaseInsensitive) == 0) {
-                for (const auto &component : plan.components) {
-                    components.append(CompLabel(0,
-                                                component.wiringRect.x(),
-                                                component.wiringRect.y(),
-                                                component.wiringRect.width(),
-                                                component.wiringRect.height(),
-                                                0,
-                                                0.0,
-                                                component.id,
-                                                component.id,
-                                                QByteArray()));
-                }
-                break;
-            }
+        for (const auto &component : board.components) {
+            const QString labelText = component.type.isEmpty() ? component.reference : component.type;
+            components.append(CompLabel(0,
+                                        component.bbox.x(),
+                                        component.bbox.y(),
+                                        component.bbox.width(),
+                                        component.bbox.height(),
+                                        0,
+                                        0.0,
+                                        labelText,
+                                        component.reference,
+                                        QByteArray()));
         }
         entry.components = components;
 
@@ -166,9 +221,56 @@ void BoardManager::setupConnections()
     if (ui->buttonRefreshList) {
         connect(ui->buttonRefreshList, &QPushButton::clicked, this, &BoardManager::onRefreshBoards);
     }
+    if (ui->buttonEditAnchors) {
+        connect(ui->buttonEditAnchors, &QPushButton::clicked, this, &BoardManager::onEditAnchors);
+    }
+    if (ui->buttonEditPlanBindings) {
+        connect(ui->buttonEditPlanBindings, &QPushButton::clicked, this, &BoardManager::onEditPlanBindings);
+    }
     if (ui->tableBoards) {
         connect(ui->tableBoards, &QTableWidget::itemSelectionChanged, this, &BoardManager::onBoardSelectionChanged);
     }
+}
+
+QString BoardManager::currentBoardName() const
+{
+    if (!ui->tableBoards) {
+        return QString();
+    }
+    const int row = ui->tableBoards->currentRow();
+    if (row < 0 || row >= ui->tableBoards->rowCount()) {
+        return QString();
+    }
+    const auto *item = ui->tableBoards->item(row, 0);
+    return item ? item->text() : QString();
+}
+
+bool BoardManager::editJsonDialog(const QString &title, const QString &initialText, QString *updatedText)
+{
+    if (!updatedText) {
+        return false;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(title);
+    dialog.resize(900, 650);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *editor = new QPlainTextEdit(&dialog);
+    editor->setPlainText(initialText);
+    layout->addWidget(editor);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return false;
+    }
+
+    *updatedText = editor->toPlainText();
+    return true;
 }
 
 void BoardManager::populateBoardTable(const QString &filterText)
@@ -460,7 +562,7 @@ void BoardManager::onNewBoard()
 
     BoardInfoRecord record;
     record.name = name;
-    record.model = modelEdit->text().trimmed();
+    record.boardId = modelEdit->text().trimmed();
     record.version = QStringLiteral("v1");
     record.createdAt = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     record.imagePath = savedPath;
@@ -471,26 +573,19 @@ void BoardManager::onNewBoard()
     }
 
     for (const auto &label : labels) {
-        QString id = label.position_number;
+        QString id = m_dataManager.normalizeComponentReference(name, label.position_number);
         if (id.isEmpty()) {
-            id = label.label;
-        }
-        if (id.isEmpty()) {
-            id = QString::number(label.id);
+            id = m_dataManager.normalizeComponentReference(name, QString());
         }
         if (id.isEmpty()) {
             continue;
         }
 
         BoardComponentRecord component;
-        component.id = id;
-        component.wiringRect = QRectF(label.x, label.y, label.w, label.h);
-
-        QJsonObject params;
-        params.insert(QStringLiteral("label"), label.label);
-        params.insert(QStringLiteral("confidence"), label.confidence);
-        params.insert(QStringLiteral("notes"), QString::fromUtf8(label.notes.toBase64()));
-        component.params = params;
+        component.reference = id;
+        component.type = label.label;
+        component.model = QString();
+        component.bbox = QRectF(label.x, label.y, label.w, label.h);
 
         m_dataManager.upsertComponent(name, component);
     }
@@ -534,6 +629,162 @@ void BoardManager::onRefreshBoards()
     populateBoardTable();
 }
 
+void BoardManager::onEditAnchors()
+{
+    const QString boardName = currentBoardName();
+    if (boardName.isEmpty()) {
+        QMessageBox::information(this, tr("编辑锚点"), tr("请选择板卡。"));
+        return;
+    }
+
+    QJsonArray records;
+    for (const auto &record : m_dataManager.anchors()) {
+        if (record.boardName.compare(boardName, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+
+        QJsonArray anchors;
+        for (const auto &anchor : record.anchors) {
+            QJsonObject anchorObj;
+            anchorObj.insert(QStringLiteral("id"), anchor.id);
+            anchorObj.insert(QStringLiteral("label"), anchor.label);
+            anchorObj.insert(QStringLiteral("position"), rectToJson(anchor.position));
+            anchors.append(anchorObj);
+        }
+
+        QJsonObject recordObj;
+        recordObj.insert(QStringLiteral("componentRef"), record.componentRef);
+        recordObj.insert(QStringLiteral("anchors"), anchors);
+        records.append(recordObj);
+    }
+
+    QJsonObject root;
+    root.insert(QStringLiteral("boardName"), boardName);
+    root.insert(QStringLiteral("anchors"), records);
+
+    const QString initialText = QString::fromUtf8(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    QString updatedText;
+    if (!editJsonDialog(tr("编辑锚点"), initialText, &updatedText)) {
+        return;
+    }
+
+    QJsonParseError error;
+    const QJsonDocument doc = QJsonDocument::fromJson(updatedText.toUtf8(), &error);
+    if (error.error != QJsonParseError::NoError || !doc.isObject()) {
+        QMessageBox::warning(this, tr("编辑锚点"), tr("JSON 解析失败：%1").arg(error.errorString()));
+        return;
+    }
+
+    const QJsonObject obj = doc.object();
+    const QJsonArray list = obj.value(QStringLiteral("anchors")).toArray();
+
+    m_dataManager.clearAnchors(boardName);
+    for (const auto &value : list) {
+        const QJsonObject recordObj = value.toObject();
+        QString componentRef = recordObj.value(QStringLiteral("componentRef")).toString();
+        if (componentRef.trimmed().isEmpty()) {
+            componentRef = m_dataManager.normalizeComponentReference(boardName, QString());
+        }
+        if (componentRef.trimmed().isEmpty()) {
+            continue;
+        }
+
+        QVector<AnchorPoint> anchors;
+        const QJsonArray anchorsArray = recordObj.value(QStringLiteral("anchors")).toArray();
+        for (const auto &anchorValue : anchorsArray) {
+            const QJsonObject anchorObj = anchorValue.toObject();
+            AnchorPoint anchor;
+            anchor.id = anchorObj.value(QStringLiteral("id")).toString();
+            anchor.label = anchorObj.value(QStringLiteral("label")).toString();
+            anchor.position = rectFromJson(anchorObj.value(QStringLiteral("position")).toObject());
+            anchors.push_back(anchor);
+        }
+
+        m_dataManager.upsertAnchors(boardName, componentRef, anchors);
+    }
+
+    persistBoards();
+    loadBoardsFromStorage();
+}
+
+void BoardManager::onEditPlanBindings()
+{
+    const QString boardName = currentBoardName();
+    if (boardName.isEmpty()) {
+        QMessageBox::information(this, tr("编辑计划绑定"), tr("请选择板卡。"));
+        return;
+    }
+
+    QJsonArray bindings;
+    for (const auto &record : m_dataManager.planBindings()) {
+        if (record.boardName.compare(boardName, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+
+        for (const auto &binding : record.bindings) {
+            QJsonObject params;
+            for (auto it = binding.parameterValues.cbegin(); it != binding.parameterValues.cend(); ++it) {
+                params.insert(it.key(), QJsonValue::fromVariant(it.value()));
+            }
+
+            QJsonObject bindingObj;
+            bindingObj.insert(QStringLiteral("componentRef"), binding.componentRef);
+            bindingObj.insert(QStringLiteral("planId"), binding.planId);
+            bindingObj.insert(QStringLiteral("parameterValues"), params);
+            bindingObj.insert(QStringLiteral("hasTemperatureOverride"), binding.hasTemperatureOverride);
+            bindingObj.insert(QStringLiteral("temperatureOverride"), temperatureSpecToJson(binding.temperatureOverride));
+            bindings.append(bindingObj);
+        }
+        break;
+    }
+
+    QJsonObject root;
+    root.insert(QStringLiteral("boardName"), boardName);
+    root.insert(QStringLiteral("bindings"), bindings);
+
+    const QString initialText = QString::fromUtf8(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    QString updatedText;
+    if (!editJsonDialog(tr("编辑计划绑定"), initialText, &updatedText)) {
+        return;
+    }
+
+    QJsonParseError error;
+    const QJsonDocument doc = QJsonDocument::fromJson(updatedText.toUtf8(), &error);
+    if (error.error != QJsonParseError::NoError || !doc.isObject()) {
+        QMessageBox::warning(this, tr("编辑计划绑定"), tr("JSON 解析失败：%1").arg(error.errorString()));
+        return;
+    }
+
+    const QJsonObject obj = doc.object();
+    const QJsonArray list = obj.value(QStringLiteral("bindings")).toArray();
+
+    m_dataManager.clearPlanBindings(boardName);
+    for (const auto &value : list) {
+        const QJsonObject bindingObj = value.toObject();
+        ComponentPlanBinding binding;
+        binding.componentRef = bindingObj.value(QStringLiteral("componentRef")).toString();
+        if (binding.componentRef.trimmed().isEmpty()) {
+            binding.componentRef = m_dataManager.normalizeComponentReference(boardName, QString());
+        }
+        binding.planId = bindingObj.value(QStringLiteral("planId")).toString();
+
+        const QJsonObject paramsObj = bindingObj.value(QStringLiteral("parameterValues")).toObject();
+        for (auto it = paramsObj.begin(); it != paramsObj.end(); ++it) {
+            binding.parameterValues.insert(it.key(), it.value().toVariant());
+        }
+
+        binding.hasTemperatureOverride = bindingObj.value(QStringLiteral("hasTemperatureOverride")).toBool(false);
+        binding.temperatureOverride = temperatureSpecFromJson(bindingObj.value(QStringLiteral("temperatureOverride")).toObject());
+
+        if (!binding.componentRef.trimmed().isEmpty() && !binding.planId.trimmed().isEmpty()) {
+            m_dataManager.upsertPlanBinding(boardName, binding);
+        }
+    }
+
+    persistBoards();
+    loadBoardsFromStorage();
+}
+
 
 void BoardManager::onOpenLabelEditor()
 {
@@ -565,12 +816,9 @@ void BoardManager::onOpenLabelEditor()
 
                 QSet<QString> newIds;
                 for (const auto &label : labels) {
-                    QString id = label.position_number;
+                    QString id = m_dataManager.normalizeComponentReference(boardName, label.position_number);
                     if (id.isEmpty()) {
-                        id = label.label;
-                    }
-                    if (id.isEmpty()) {
-                        id = QString::number(label.id);
+                        id = m_dataManager.normalizeComponentReference(boardName, QString());
                     }
                     if (id.isEmpty()) {
                         continue;
@@ -578,14 +826,10 @@ void BoardManager::onOpenLabelEditor()
                     newIds.insert(id);
 
                     BoardComponentRecord record;
-                    record.id = id;
-                    record.wiringRect = QRectF(label.x, label.y, label.w, label.h);
-
-                    QJsonObject params;
-                    params.insert(QStringLiteral("label"), label.label);
-                    params.insert(QStringLiteral("confidence"), label.confidence);
-                    params.insert(QStringLiteral("notes"), QString::fromUtf8(label.notes.toBase64()));
-                    record.params = params;
+                    record.reference = id;
+                    record.type = label.label;
+                    record.model = QString();
+                    record.bbox = QRectF(label.x, label.y, label.w, label.h);
 
                     m_dataManager.upsertComponent(boardName, record);
                 }
@@ -594,7 +838,7 @@ void BoardManager::onOpenLabelEditor()
                 if (boardIndex >= 0) {
                     const auto existingIds = m_boards[boardIndex].components;
                     for (const auto &comp : existingIds) {
-                        const QString id = comp.position_number.isEmpty() ? comp.label : comp.position_number;
+                        const QString id = comp.position_number;
                         if (!newIds.contains(id)) {
                             m_dataManager.removeComponent(boardName, id);
                         }
@@ -647,29 +891,18 @@ void BoardManager::onBoardSelectionChanged()
         }
         QList<CompLabel> labels;
         int nextId = 1;
-        for (const auto &plan : m_dataManager.plans()) {
-            if (plan.boardName.compare(entry.name, Qt::CaseInsensitive) != 0) {
-                continue;
-            }
-            for (const auto &component : plan.components) {
-                const QJsonObject params = component.params;
-                const QString labelText = params.value(QStringLiteral("label")).toString(component.id);
-                const double confidence = params.value(QStringLiteral("confidence")).toDouble(0.0);
-                const QString notesStr = params.value(QStringLiteral("notes")).toString();
-                const QByteArray notes = notesStr.isEmpty() ? QByteArray() : QByteArray::fromBase64(notesStr.toUtf8());
-
-                labels.append(CompLabel(nextId++,
-                                        component.wiringRect.x(),
-                                        component.wiringRect.y(),
-                                        component.wiringRect.width(),
-                                        component.wiringRect.height(),
-                                        0,
-                                        confidence,
-                                        labelText,
-                                        component.id,
-                                        notes));
-            }
-            break;
+        for (const auto &component : entry.components) {
+            const QString labelText = component.label.isEmpty() ? component.position_number : component.label;
+            labels.append(CompLabel(nextId++,
+                                    component.x,
+                                    component.y,
+                                    component.w,
+                                    component.h,
+                                    0,
+                                    0.0,
+                                    labelText,
+                                    component.position_number,
+                                    QByteArray()));
         }
         m_labelEditor->setImage(entry.sourceImage);
         m_labelEditor->setLabels(labels, true);

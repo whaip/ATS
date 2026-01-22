@@ -230,6 +230,24 @@
           <item>
            <widget class="QTextBrowser" name="textOtherInfo"/>
           </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_bindingsActions">
+           <item>
+            <widget class="QPushButton" name="buttonEditAnchors">
+             <property name="text">
+              <string>编辑锚点</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="buttonEditPlanBindings">
+             <property name="text">
+              <string>编辑计划绑定</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
          </layout>
         </widget>
        </item>

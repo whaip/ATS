@@ -34,6 +34,8 @@ private slots:
     void onRefreshBoards();
     void onOpenLabelEditor();
     void onBoardSelectionChanged();
+    void onEditAnchors();
+    void onEditPlanBindings();
 
 private:
     struct BoardEntry {
@@ -54,6 +56,8 @@ private:
     void resetInfoPanel();
     void loadBoardsFromStorage();
     void persistBoards();
+    QString currentBoardName() const;
+    bool editJsonDialog(const QString &title, const QString &initialText, QString *updatedText);
 
     Ui::BoardManager *ui;
     LebalItemManager *m_labelEditor = nullptr;
