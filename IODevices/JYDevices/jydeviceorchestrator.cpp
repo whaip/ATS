@@ -1,7 +1,27 @@
 #include "jydeviceorchestrator.h"
+#include "jydeviceconfigutils.h"
 
 #include <QEventLoop>
 #include <QTimer>
+
+namespace {
+bool isEnabled(JYDeviceKind kind,
+               const JYDeviceConfig &config532x,
+               const JYDeviceConfig &config5711,
+               const JYDeviceConfig &config8902)
+{
+    switch (kind) {
+        case JYDeviceKind::PXIe5322:
+        case JYDeviceKind::PXIe5323:
+            return config532x.cfg532x.channelCount > 0 && config532x.cfg532x.slotNumber >= 0;
+        case JYDeviceKind::PXIe5711:
+            return config5711.cfg5711.channelCount > 0 && config5711.cfg5711.slotNumber >= 0;
+        case JYDeviceKind::PXIe8902:
+            return config8902.cfg8902.sampleCount > 0 && config8902.cfg8902.slotNumber >= 0;
+    }
+    return false;
+}
+}
 
 JYDeviceOrchestrator::JYDeviceOrchestrator(QObject *parent)
     : QObject(parent)
@@ -30,11 +50,24 @@ void JYDeviceOrchestrator::configureAll(const JYDeviceConfig &config532x, const 
 {
     for (auto *worker : m_workers) {
         if (!worker) continue;
+        if (!isEnabled(worker->kind(), config532x, config5711, config8902)) {
+            continue;
+        }
         switch (worker->kind()) {
             case JYDeviceKind::PXIe5322:
             case JYDeviceKind::PXIe5323:
-                worker->postConfigure(config532x);
+            {
+                const JYDeviceKind kind = worker->kind();
+                JYDeviceConfig cfg = build532xInitConfig(kind);
+                cfg.cfg532x.channelCount = config532x.cfg532x.channelCount;
+                cfg.cfg532x.samplesPerRead = config532x.cfg532x.samplesPerRead;
+                cfg.cfg532x.timeoutMs = config532x.cfg532x.timeoutMs;
+                cfg.cfg532x.lowRange = config532x.cfg532x.lowRange;
+                cfg.cfg532x.highRange = config532x.cfg532x.highRange;
+                cfg.cfg532x.bandwidth = config532x.cfg532x.bandwidth;
+                worker->postConfigure(cfg);
                 break;
+            }
             case JYDeviceKind::PXIe5711:
                 worker->postConfigure(config5711);
                 break;
@@ -86,31 +119,72 @@ bool JYDeviceOrchestrator::synchronizeStart(const JYDeviceConfig &config532x,
                                             const JYDeviceConfig &config8902,
                                             int timeoutMs)
 {
+    m_lastConfig532x = config532x;
+    m_lastConfig5711 = config5711;
+    m_lastConfig8902 = config8902;
+    m_hasLastConfig = true;
+
     configureAll(config532x, config5711, config8902);
     QString reason;
-    if (!waitForAll(JYDeviceState::Configured, timeoutMs, &reason)) {
+    if (!waitForAll(JYDeviceState::Configured, timeoutMs, &reason, config532x, config5711, config8902, true)) {
         closeAll();
         emit syncFailed(reason);
         return false;
     }
 
-    startAll();
-    if (!waitForAll(JYDeviceState::Running, timeoutMs, &reason)) {
+    for (auto *worker : m_workers) {
+        if (!worker) {
+            continue;
+        }
+        if (!isEnabled(worker->kind(), config532x, config5711, config8902)) {
+            continue;
+        }
+        worker->postStart();
+    }
+
+    if (!waitForAll(JYDeviceState::Running, timeoutMs, &reason, config532x, config5711, config8902, true)) {
         closeAll();
         emit syncFailed(reason);
         return false;
     }
 
-    triggerAll();
+    for (auto *worker : m_workers) {
+        if (!worker) {
+            continue;
+        }
+        if (!isEnabled(worker->kind(), config532x, config5711, config8902)) {
+            continue;
+        }
+        worker->postTrigger();
+    }
     emit syncSucceeded();
     return true;
 }
 
 bool JYDeviceOrchestrator::synchronizeStop(int timeoutMs)
 {
-    stopAll();
     QString reason;
-    if (!waitForAll(JYDeviceState::Configured, timeoutMs, &reason)) {
+    if (m_hasLastConfig) {
+        for (auto *worker : m_workers) {
+            if (!worker) {
+                continue;
+            }
+            if (!isEnabled(worker->kind(), m_lastConfig532x, m_lastConfig5711, m_lastConfig8902)) {
+                continue;
+            }
+            worker->postStop();
+        }
+        if (!waitForAll(JYDeviceState::Configured, timeoutMs, &reason, m_lastConfig532x, m_lastConfig5711, m_lastConfig8902, true)) {
+            closeAll();
+            emit syncFailed(reason);
+            return false;
+        }
+        emit syncSucceeded();
+        return true;
+    }
+
+    stopAll();
+    if (!waitForAll(JYDeviceState::Configured, timeoutMs, &reason, JYDeviceConfig{}, JYDeviceConfig{}, JYDeviceConfig{}, false)) {
         closeAll();
         emit syncFailed(reason);
         return false;
@@ -119,19 +193,28 @@ bool JYDeviceOrchestrator::synchronizeStop(int timeoutMs)
     return true;
 }
 
-bool JYDeviceOrchestrator::waitForAll(JYDeviceState targetState, int timeoutMs, QString *reason)
+bool JYDeviceOrchestrator::waitForAll(JYDeviceState targetState,
+                                      int timeoutMs,
+                                      QString *reason,
+                                      const JYDeviceConfig &config532x,
+                                      const JYDeviceConfig &config5711,
+                                      const JYDeviceConfig &config8902,
+                                      bool useFilter)
 {
     QEventLoop loop;
     QTimer timer;
     timer.setSingleShot(true);
     connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
 
-    auto isDone = [this, targetState]() -> bool {
+    auto isDone = [this, targetState, &config532x, &config5711, &config8902, useFilter]() -> bool {
         if (m_workers.isEmpty()) {
             return true;
         }
         for (auto *worker : m_workers) {
             if (!worker) {
+                continue;
+            }
+            if (useFilter && !isEnabled(worker->kind(), config532x, config5711, config8902)) {
                 continue;
             }
             const JYDeviceState state = m_states.value(worker, worker->state());

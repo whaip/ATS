@@ -8,7 +8,7 @@
 #include <QVector>
 #include <QPointF>
 #include <QRectF>
-#include "../IODevices/portdefinitions.h"
+#include "../../IODevices/portdefinitions.h"
  
 
 struct ParameterSpec {

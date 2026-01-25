@@ -6,7 +6,7 @@
 #include <QRectF>
 #include <QString>
 #include <QVector>
-#include "../FaultDiagnostic/testplan.h"
+#include "../FaultDiagnostic/Core/testplan.h"
 
 struct AnchorPoint {
     QString id;

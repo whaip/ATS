@@ -51,6 +51,13 @@
        <number>10</number>
       </property>
       <item>
+       <widget class="QPushButton" name="pbTest">
+        <property name="text">
+         <string>测试</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QLabel" name="labelComponents">
         <property name="text">
          <string>器件列表</string>

@@ -71,6 +71,9 @@ struct JYDeviceConfig {
 struct JYDataPacket {
 	JYDeviceKind kind = JYDeviceKind::PXIe5322;
 	int channelCount = 0;
+	int samplesPerChannel = 0;
+	double sampleRateHz = 0.0;
+	quint64 startSampleIndex = 0;
 	QVector<double> data;
 	qint64 timestampMs = 0;
 };

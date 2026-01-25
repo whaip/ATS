@@ -15,8 +15,16 @@ SOURCES += \
     ComponentsDetect/yolomodel.cpp \
     ComponentsDetect/yolostation.cpp \
     ComponentsDetect/yolostationclient.cpp \
-    FaultDiagnostic/configurationwindow.cpp \
-    FaultDiagnostic/faultdiagnostic.cpp \
+    FaultDiagnostic/UI/configurationwindow.cpp \
+    FaultDiagnostic/UI/faultdiagnostic.cpp \
+    FaultDiagnostic/Core/testsequencemanager.cpp \
+    FaultDiagnostic/Core/deviceportplanner.cpp \
+    FaultDiagnostic/Core/deviceportmanager.cpp \
+    FaultDiagnostic/Runtime/systemorchestration.cpp \
+    FaultDiagnostic/TPS/Manager/tpspluginmanager.cpp \
+    FaultDiagnostic/TPS/Plugins/exampletpsplugin.cpp \
+    FaultDiagnostic/TPS/Plugins/resistancetpsplugin.cpp \
+    FaultDiagnostic/TPS/Plugins/multitpsplugin.cpp \
     HDCamera/hdcamera.cpp \
     HDCamera/camerastation.cpp \
     HDCamera/camerastationclient.cpp \
@@ -30,6 +38,7 @@ SOURCES += \
     IODevices/JYDevices/jydataaligner.cpp \
     IODevices/JYDevices/jydatapipeline.cpp \
     IODevices/JYDevices/jythreadmanager.cpp \
+    IODevices/JYDevices/jydeviceconfigutils.cpp \
     IODevices/uestcqcustomplot.cpp \
     IRCamera/ircamera.cpp \
     IRCamera/ircamerastation.cpp \
@@ -56,9 +65,19 @@ HEADERS += \
     ComponentsDetect/yolomodel.h \
     ComponentsDetect/yolostation.h \
     ComponentsDetect/yolostationclient.h \
-    FaultDiagnostic/configurationwindow.h \
-    FaultDiagnostic/faultdiagnostic.h \
-    FaultDiagnostic/testplan.h \
+    FaultDiagnostic/UI/configurationwindow.h \
+    FaultDiagnostic/UI/faultdiagnostic.h \
+    FaultDiagnostic/Core/testsequencemanager.h \
+    FaultDiagnostic/Core/deviceportplanner.h \
+    FaultDiagnostic/Core/deviceportmanager.h \
+    FaultDiagnostic/Runtime/systemorchestration.h \
+    FaultDiagnostic/TPS/Manager/tpspluginmanager.h \
+    FaultDiagnostic/TPS/Core/tpsplugininterface.h \
+    FaultDiagnostic/TPS/Core/tpsmodels.h \
+    FaultDiagnostic/TPS/Plugins/exampletpsplugin.h \
+    FaultDiagnostic/TPS/Plugins/resistancetpsplugin.h \
+    FaultDiagnostic/TPS/Plugins/multitpsplugin.h \
+    FaultDiagnostic/Core/testplan.h \
     HDCamera/hdcamera.h \
     HDCamera/camerastation.h \
     HDCamera/camerastationclient.h \
@@ -73,6 +92,7 @@ HEADERS += \
     IODevices/JYDevices/jydeviceadapter.h \
     IODevices/JYDevices/jydeviceorchestrator.h \
     IODevices/JYDevices/jydeviceworker.h \
+    IODevices/JYDevices/jydeviceconfigutils.h \
     IODevices/JYDevices/5711waveformconfig.h \
     IODevices/JYDevices/jydevicetype.h \
     IODevices/JYDevices/jythreadmanager.h \
@@ -97,8 +117,8 @@ HEADERS += \
 FORMS += \
     BoardManager/boardmanager.ui \
     ComponentsDetect/componentsdetect.ui \
-    FaultDiagnostic/configurationwindow.ui \
-    FaultDiagnostic/faultdiagnostic.ui \
+    FaultDiagnostic/UI/configurationwindow.ui \
+    FaultDiagnostic/UI/faultdiagnostic.ui \
     HDCamera/hdcamera.ui \
     IODevices/DataCaptureCard/datacapturecard.ui \
     IODevices/DataGenerateCard/datageneratecard.ui \

@@ -1,0 +1,58 @@
+QWidget {
+    background-color: #1c1f26;
+    color: #e6e9f2;
+    font-family: "Microsoft YaHei";
+}
+
+QLabel#titleLabel {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+QFrame#sequenceFrame,
+QFrame#detailFrame,
+QFrame#detailInfoFrame {
+    background-color: #242833;
+    border: 1px solid #30384a;
+    border-radius: 8px;
+}
+
+QToolButton {
+    background-color: #2d3c5a;
+    border: 1px solid #3b4a6b;
+    border-radius: 6px;
+    padding: 6px 12px;
+}
+
+QToolButton:hover {
+    background-color: #394c72;
+}
+
+QTableWidget {
+    background-color: #242833;
+    border: none;
+    gridline-color: #343c4f;
+}
+
+QHeaderView::section {
+    background-color: #2b3242;
+    border: none;
+    padding: 6px 8px;
+    font-weight: 600;
+}
+
+QScrollArea {
+    border: none;
+}
+
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background-color: #1f2430;
+    border: 1px solid #3b4458;
+    border-radius: 6px;
+    padding: 4px 6px;
+    color: #e6e9f2;
+}
+
+QCheckBox {
+    spacing: 8px;
+}

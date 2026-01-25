@@ -46,7 +46,7 @@ void JYDeviceWorker::postConfigure(const JYDeviceConfig &config)
 {
     enqueue([this, config]() {
         QString error;
-        if (!isStateAllowed({JYDeviceState::Closed, JYDeviceState::Configured}, &error, QStringLiteral("configure"))) {
+        if (!isStateAllowed({JYDeviceState::Closed, JYDeviceState::Configured, JYDeviceState::Faulted}, &error, QStringLiteral("configure"))) {
             rejectAction(error);
             return;
         }

@@ -29,10 +29,20 @@ signals:
 
 private:
     void purgeStale(qint64 newestTs);
+    bool buildAlignedBatch(JYAlignedBatch &batch);
+    static QVector<QVector<double>> deinterleave(const JYDataPacket &packet);
+    static QVector<double> resampleChannel(const QVector<double> &samples,
+                                           double sampleRateHz,
+                                           quint64 startIndex,
+                                           double t0Seconds,
+                                           const QVector<double> &targetTimes);
+    static void interleave(const QVector<QVector<double>> &channels, QVector<double> &out);
 
     Settings m_settings;
     QSet<JYDeviceKind> m_expected;
     QMap<JYDeviceKind, JYDataPacket> m_latest;
+    bool m_hasAnchor = false;
+    double m_anchorTimeSeconds = 0.0;
 };
 
 #endif // JYDATAALIGNER_H

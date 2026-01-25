@@ -196,6 +196,9 @@ public:
 
         out->kind = m_kind;
         out->channelCount = m_cfg.channelCount;
+        out->samplesPerChannel = static_cast<int>(actualRead);
+        out->sampleRateHz = m_cfg.sampleRate;
+        out->startSampleIndex = m_totalSamples;
         out->data.clear();
         unsigned int total = actualRead * static_cast<unsigned int>(m_cfg.channelCount);
         if (total > static_cast<unsigned int>(m_buffer.size())) {
@@ -211,6 +214,7 @@ public:
             out->data.push_back(m_buffer[i]);
         }
         out->timestampMs = nowMs();
+        m_totalSamples += actualRead;
         return true;
     }
 
@@ -225,6 +229,7 @@ private:
     std::vector<double> m_buffer;
     unsigned long long m_lastTransferredSamples = 0;
     bool m_hasTransferredBaseline = false;
+    quint64 m_totalSamples = 0;
 };
 
 class JY5711Adapter final : public JYDeviceAdapter
@@ -607,12 +612,16 @@ public:
 
         out->kind = JYDeviceKind::PXIe8902;
         out->channelCount = 1;
+        out->samplesPerChannel = actualRead;
+        out->sampleRateHz = (m_cfg.apertureTime > 0.0) ? (1.0 / m_cfg.apertureTime) : 0.0;
+        out->startSampleIndex = m_totalSamples;
         out->data.clear();
         out->data.reserve(actualRead);
         for (int i = 0; i < actualRead; ++i) {
             out->data.push_back(m_buffer[static_cast<size_t>(i)]);
         }
         out->timestampMs = nowMs();
+        m_totalSamples += static_cast<quint64>(actualRead);
         return true;
     }
 
@@ -625,6 +634,7 @@ private:
     const qint64 m_firstReadDelayMs = 500;
     unsigned long long m_lastTransferredSamples = 0;
     bool m_hasTransferredBaseline = false;
+    quint64 m_totalSamples = 0;
 };
 }
 

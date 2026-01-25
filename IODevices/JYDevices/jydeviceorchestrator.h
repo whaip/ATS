@@ -32,10 +32,20 @@ signals:
     void syncSucceeded();
 
 private:
-    bool waitForAll(JYDeviceState targetState, int timeoutMs, QString *reason);
+    bool waitForAll(JYDeviceState targetState,
+                    int timeoutMs,
+                    QString *reason,
+                    const JYDeviceConfig &config532x,
+                    const JYDeviceConfig &config5711,
+                    const JYDeviceConfig &config8902,
+                    bool useFilter);
 
     QVector<JYDeviceWorker *> m_workers;
     QMap<JYDeviceWorker *, JYDeviceState> m_states;
+    bool m_hasLastConfig = false;
+    JYDeviceConfig m_lastConfig532x;
+    JYDeviceConfig m_lastConfig5711;
+    JYDeviceConfig m_lastConfig8902;
 };
 
 #endif // JYDEVICEORCHESTRATOR_H

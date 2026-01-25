@@ -26,6 +26,7 @@ class IRCamera;
 class DataGenerateCard;
 class FaultDiagnostic;
 class BoardManager;
+class ConfigurationWindow;
 class JYThreadManager;
 class JYDeviceWorker;
 
@@ -61,6 +62,8 @@ private:
     int m_dataGeneratePageIndex = -1;
     FaultDiagnostic *m_faultDiagnosticPage = nullptr;
     int m_faultDiagnosticPageIndex = -1;
+    ConfigurationWindow *m_configurationPage = nullptr;
+    int m_configurationPageIndex = -1;
     BoardManager *m_boardManagerPage = nullptr;
     int m_boardManagerPageIndex = -1;
     bool m_irStationRunning = false;
