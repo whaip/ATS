@@ -6,6 +6,9 @@
 #include <QVector>
 #include <QWidget>
 #include "../Runtime/systemorchestration.h"
+#include "../Diagnostics/diagnosticdispatcher.h"
+#include "../Diagnostics/diagnosticpluginmanager.h"
+#include "../Diagnostics/Plugins/multitpsdiagnosticplugin.h"
 #include "../TPS/Manager/tpspluginmanager.h"
 #include "../TPS/Plugins/resistancetpsplugin.h"
 #include "../TPS/Plugins/multitpsplugin.h"
@@ -86,6 +89,9 @@ private:
     TPSPluginManager *m_tpsManager = nullptr;
     ResistanceTpsPlugin *m_resistancePlugin = nullptr;
     MultiSignalTpsPlugin *m_multiPlugin = nullptr;
+    DiagnosticPluginManager *m_diagPluginManager = nullptr;
+    MultiTpsDiagnosticPlugin *m_multiSignalDiagnosticPlugin = nullptr;
+    DiagnosticDispatcher m_diagnosticDispatcher;
     bool m_devicesCreated = false;
 };
 

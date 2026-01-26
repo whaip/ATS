@@ -16,6 +16,12 @@ public:
     virtual QString version() const = 0;
 
     virtual QVector<TPSParamDefinition> parameterDefinitions() const = 0;
+    virtual TPSPluginRequirement requirements() const = 0;
+
+    virtual bool buildDevicePlan(const QVector<TPSPortBinding> &bindings,
+                                 const QMap<QString, QVariant> &settings,
+                                 TPSDevicePlan *plan,
+                                 QString *error) = 0;
 
     virtual bool configure(const QMap<QString, QVariant> &settings, QString *error) = 0;
     virtual bool execute(const TPSRequest &request, TPSResult *result, QString *error) = 0;

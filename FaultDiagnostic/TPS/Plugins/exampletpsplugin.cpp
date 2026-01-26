@@ -1,5 +1,7 @@
 #include "exampletpsplugin.h"
 
+#include "../../../IODevices/JYDevices/jydeviceconfigutils.h"
+
 QString ExampleTpsPlugin::pluginId() const
 {
     return QStringLiteral("example.tps.basic");
@@ -17,6 +19,13 @@ QString ExampleTpsPlugin::version() const
 
 QVector<TPSParamDefinition> ExampleTpsPlugin::parameterDefinitions() const
 {
+    return requirements().parameters;
+}
+
+TPSPluginRequirement ExampleTpsPlugin::requirements() const
+{
+    TPSPluginRequirement requirement;
+
     TPSParamDefinition note;
     note.key = QStringLiteral("note");
     note.label = QStringLiteral("备注");
@@ -33,7 +42,37 @@ QVector<TPSParamDefinition> ExampleTpsPlugin::parameterDefinitions() const
     retry.maxValue = 5;
     retry.stepValue = 1;
 
-    return {note, retry};
+    requirement.parameters = {note, retry};
+    return requirement;
+}
+
+bool ExampleTpsPlugin::buildDevicePlan(const QVector<TPSPortBinding> &bindings,
+                                       const QMap<QString, QVariant> &settings,
+                                       TPSDevicePlan *plan,
+                                       QString *error)
+{
+    Q_UNUSED(settings)
+    if (!plan) {
+        if (error) {
+            *error = QStringLiteral("plan is null");
+        }
+        return false;
+    }
+
+    TPSDevicePlan devicePlan;
+    devicePlan.bindings = bindings;
+    devicePlan.cfg532x = build532xInitConfig(JYDeviceKind::PXIe5322);
+    devicePlan.cfg5711 = build5711InitConfig();
+    devicePlan.cfg8902 = build8902InitConfig();
+    devicePlan.cfg532x.cfg532x.channelCount = 0;
+    devicePlan.cfg532x.cfg532x.slotNumber = -1;
+    devicePlan.cfg5711.cfg5711.channelCount = 0;
+    devicePlan.cfg5711.cfg5711.slotNumber = -1;
+    devicePlan.cfg8902.cfg8902.sampleCount = 0;
+    devicePlan.cfg8902.cfg8902.slotNumber = -1;
+
+    *plan = devicePlan;
+    return true;
 }
 
 bool ExampleTpsPlugin::configure(const QMap<QString, QVariant> &settings, QString *error)

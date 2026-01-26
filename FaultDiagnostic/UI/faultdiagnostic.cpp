@@ -6,8 +6,8 @@
 #include "../../HDCamera/camerastation.h"
 #include "../../IODevices/JYDevices/jythreadmanager.h"
 #include "../../IRCamera/ircamerastation.h"
-#include "../Core/deviceportplanner.h"
 #include "../Core/deviceportmanager.h"
+#include "../Diagnostics/diagnosticdatamapper.h"
 #include <QMessageBox>
 
 #include <QAbstractItemView>
@@ -44,6 +44,13 @@ FaultDiagnostic::FaultDiagnostic(QWidget *parent)
     m_tpsManager->addBuiltin(m_resistancePlugin);
     m_tpsManager->addBuiltin(m_multiPlugin);
     m_tpsManager->loadAll(nullptr);
+
+    m_diagPluginManager = new DiagnosticPluginManager(this);
+    m_diagPluginManager->setPluginDir(QStringLiteral("D:/FaultDetect/Program/FaultDetect/ATS/FaultDiagnostic/Diagnostics/Plugins"));
+    m_multiSignalDiagnosticPlugin = new MultiTpsDiagnosticPlugin(this);
+    m_diagPluginManager->addBuiltin(m_multiSignalDiagnosticPlugin);
+    m_diagPluginManager->loadAll(nullptr);
+    m_diagnosticDispatcher.setPluginManager(m_diagPluginManager);
 
     if (m_list) {
         connect(m_list, &QListWidget::currentRowChanged, this, &FaultDiagnostic::onComponentSelectionChanged);
@@ -147,20 +154,34 @@ void FaultDiagnostic::onTestClicked()
         return;
     }
 
-    const DevicePortPlanner::Request planRequest = DevicePortPlanner::buildDefaultRequest();
-    const DevicePortManager::Allocation allocation = DevicePortManager::allocate(planRequest);
+    const TPSPluginRequirement requirement = plugin->requirements();
+    QVector<TPSPortBinding> bindings;
+    QString portError;
+    if (!DevicePortManager::allocate(requirement.ports, &bindings, &portError)) {
+        QMessageBox::warning(this, tr("测试"), tr("端口分配失败：%1").arg(portError));
+        return;
+    }
+
+    auto hasDevice = [&](JYDeviceKind kind) {
+        for (const auto &binding : bindings) {
+            if (binding.deviceKind == kind) {
+                return true;
+            }
+        }
+        return false;
+    };
 
     if (m_threadManager && !m_devicesCreated) {
-        if (!planRequest.outputs5711.isEmpty()) {
+        if (hasDevice(JYDeviceKind::PXIe5711)) {
             m_threadManager->create5711Worker();
         }
-        if (planRequest.capture5322Ports > 0) {
+        if (hasDevice(JYDeviceKind::PXIe5322)) {
             m_threadManager->create532xWorker(JYDeviceKind::PXIe5322);
         }
-        if (planRequest.capture5323Ports > 0) {
+        if (hasDevice(JYDeviceKind::PXIe5323)) {
             m_threadManager->create532xWorker(JYDeviceKind::PXIe5323);
         }
-        if (planRequest.needResistance) {
+        if (hasDevice(JYDeviceKind::PXIe8902)) {
             m_threadManager->create8902Worker();
         }
         m_devicesCreated = true;
@@ -179,33 +200,53 @@ void FaultDiagnostic::onTestClicked()
     if (item.componentRef.isEmpty()) {
         item.componentRef = QStringLiteral("R1");
     }
-    item.planId = QStringLiteral("resistance.basic");
-    item.parameters.insert(QStringLiteral("nominalOhms"), 1000.0);
-    item.parameters.insert(QStringLiteral("tolerancePercent"), 5.0);
+    item.planId = QStringLiteral("multi.signal.basic");
     request.items.push_back(item);
 
     QMap<QString, QVariant> settings;
-    settings.insert(QStringLiteral("nominalOhms"), item.parameters.value(QStringLiteral("nominalOhms")));
-    settings.insert(QStringLiteral("tolerancePercent"), item.parameters.value(QStringLiteral("tolerancePercent")));
+    for (const auto &def : requirement.parameters) {
+        settings.insert(def.key, def.defaultValue);
+    }
     QString error;
     plugin->configure(settings, &error);
 
+    TPSDevicePlan plan;
+    if (!plugin->buildDevicePlan(bindings, settings, &plan, &error)) {
+        QMessageBox::warning(this, tr("测试"), tr("设备配置生成失败：%1").arg(error));
+        return;
+    }
+
+    QVector<ResourceMapping> mappings;
+    for (const auto &binding : plan.bindings) {
+        ResourceMapping mapping;
+        mapping.signalType = binding.identifier;
+        mapping.binding.kind = binding.deviceKind;
+        mapping.binding.channel = binding.channel;
+        mapping.binding.slot = binding.slot;
+        mapping.binding.resourceId = binding.resourceId;
+        mappings.push_back(mapping);
+    }
+
+    QVector<SignalRequest> signalRequests;
+    for (const auto &req : plan.requests) {
+        signalRequests.push_back(SignalRequest{req.id, req.signalType, req.value, req.unit});
+    }
+
     if (m_runtime && m_runtime->rms()) {
-        m_runtime->rms()->setMappings(allocation.mappings);
+        m_runtime->rms()->setMappings(mappings);
     }
 
     bool started = true;
     if (m_runtime && m_runtime->rts()) {
         QString runError;
-        const QVector<SignalRequest> requests = allocation.requests;
         started = m_runtime->rts()->startRun(request.runId,
-                       request.boardId,
-                       requests,
-                       allocation.cfg532x,
-                       allocation.cfg5711,
-                       allocation.cfg8902,
-                       2000,
-                       &runError);
+                   request.boardId,
+                   signalRequests,
+                   plan.cfg532x,
+                   plan.cfg5711,
+                   plan.cfg8902,
+                   2000,
+                   &runError);
         if (!runError.isEmpty()) {
             QMessageBox::information(this, tr("测试"), tr("运行时启动失败：%1").arg(runError));
         }
@@ -222,6 +263,8 @@ void FaultDiagnostic::onTestClicked()
         bool hasFrame = false;
         bool hasPoint = false;
         bool hasBox = false;
+        bool hasBatch = false;
+        JYAlignedBatch lastBatch;
         qint64 t0ms = -1;
         QVector<double> tempTimes;
         QVector<double> tempValues;
@@ -275,6 +318,8 @@ void FaultDiagnostic::onTestClicked()
         if (m_runtime && m_runtime->rts()) {
             batchConn = connect(m_runtime->rts(), &RuntimeServices::batchReady, this,
                                 [capture](const JYAlignedBatch &batch) {
+                                    capture->lastBatch = batch;
+                                    capture->hasBatch = true;
                                     auto appendSeries = [capture](const JYDataPacket &packet, double sampleRate,
                                                                   QVector<double> &times, QVector<double> &values) {
                                         if (packet.channelCount <= 0) {
@@ -349,20 +394,24 @@ void FaultDiagnostic::onTestClicked()
                     .arg(capture->box.maxTemp, 0, 'f', 2);
             }
 
-            TPSResult result;
-            QString error;
-            plugin->execute(request, &result, &error);
-            const double measured = result.metrics.value(QStringLiteral("measuredOhms")).toDouble();
+            DiagnosticInput diagInput;
+            diagInput.componentRef = item.componentRef;
+            diagInput.componentType = pluginId;
+            diagInput.parameters = settings;
+            diagInput.timestamp = QDateTime::currentDateTime();
+            if (capture->hasBatch) {
+                diagInput.signalSeries = DiagnosticDataMapper::mapSignals(capture->lastBatch, bindings);
+            }
+
+            QString diagError;
+            const DiagnosticReport report = m_diagnosticDispatcher.diagnose(diagInput, &diagError);
+            const double measured = report.metrics.value(QStringLiteral("voltageIn1.avg"), 0.0).toDouble();
+            const QString detail = report.detailHtml.isEmpty() ? QString() : report.detailHtml;
             view.reportHtml = QStringLiteral(
-                "<h3>电阻测试结果</h3>"
-                "<p>状态：%1</p>"
-                "<p>标称：%2 Ω</p>"
-                "<p>实测：%3 Ω</p>"
-                "<p>容差：%4 %%</p>%5")
-                .arg(result.success ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
-                .arg(result.metrics.value(QStringLiteral("nominalOhms")).toDouble(), 0, 'f', 2)
-                .arg(measured, 0, 'f', 2)
-                .arg(result.metrics.value(QStringLiteral("tolerancePercent")).toDouble(), 0, 'f', 2)
+                "<h3>诊断结果</h3>"
+                "<p>状态：%1</p>%2%3")
+                .arg(report.success ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+                .arg(detail)
                 .arg(tempHtml);
 
             view.x = capture->tempTimes.isEmpty() ? QVector<double>{0.0} : capture->tempTimes;

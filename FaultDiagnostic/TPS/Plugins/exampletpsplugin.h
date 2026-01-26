@@ -16,6 +16,12 @@ public:
     QString version() const override;
 
     QVector<TPSParamDefinition> parameterDefinitions() const override;
+    TPSPluginRequirement requirements() const override;
+
+    bool buildDevicePlan(const QVector<TPSPortBinding> &bindings,
+                         const QMap<QString, QVariant> &settings,
+                         TPSDevicePlan *plan,
+                         QString *error) override;
 
     bool configure(const QMap<QString, QVariant> &settings, QString *error) override;
     bool execute(const TPSRequest &request, TPSResult *result, QString *error) override;

@@ -10,33 +10,33 @@
 namespace PortDefinitions {
 
 enum class PortType {
-    ANALOG_INPUT,
-    ANALOG_OUTPUT,
-    DIGITAL_INPUT,
-    DIGITAL_OUTPUT,
+    CURRENT_INPUT,
+    CURRENT_OUTPUT,
+    VOLTAGE_INPUT,
+    VOLTAGE_OUTPUT,
     DMM_CHANNEL,
 };
 
 // JY5711 端口分配
 struct JY5711Ports {
-    static constexpr int ANALOG_OUTPUT_START = 0;
-    static constexpr int ANALOG_OUTPUT_END = 15;
-    static constexpr int DIGITAL_OUTPUT_START = 16;
-    static constexpr int DIGITAL_OUTPUT_END = 31;
+    static constexpr int Current_OUTPUT_START = 0;
+    static constexpr int Current_OUTPUT_END = 15;
+    static constexpr int Voltage_OUTPUT_START = 16;
+    static constexpr int Voltage_OUTPUT_END = 31;
     static constexpr int TOTAL_PORTS = 32;
 };
 
 // JY5323 端口分配
 struct JY5323Ports {
-    static constexpr int ANALOG_INPUT_START = 0;
-    static constexpr int ANALOG_INPUT_END = 31;
+    static constexpr int Current_INPUT_START = 0;
+    static constexpr int Current_INPUT_END = 31;
     static constexpr int TOTAL_PORTS = 32;
 };
 
 // JY5322 端口分配
 struct JY5322Ports {
-    static constexpr int DIGITAL_INPUT_START = 0;
-    static constexpr int DIGITAL_INPUT_END = 15;
+    static constexpr int Voltage_INPUT_START = 0;
+    static constexpr int Voltage_INPUT_END = 15;
     static constexpr int TOTAL_PORTS = 16;
 };
 

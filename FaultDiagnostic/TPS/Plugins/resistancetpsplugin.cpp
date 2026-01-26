@@ -1,5 +1,7 @@
 #include "resistancetpsplugin.h"
 
+#include "../../../IODevices/JYDevices/jydeviceconfigutils.h"
+
 #include <QtMath>
 
 ResistanceTpsPlugin::ResistanceTpsPlugin(QObject *parent)
@@ -24,6 +26,13 @@ QString ResistanceTpsPlugin::version() const
 
 QVector<TPSParamDefinition> ResistanceTpsPlugin::parameterDefinitions() const
 {
+    return requirements().parameters;
+}
+
+TPSPluginRequirement ResistanceTpsPlugin::requirements() const
+{
+    TPSPluginRequirement requirement;
+
     TPSParamDefinition nominal;
     nominal.key = QStringLiteral("nominalOhms");
     nominal.label = QStringLiteral("标称值(Ω)");
@@ -42,7 +51,57 @@ QVector<TPSParamDefinition> ResistanceTpsPlugin::parameterDefinitions() const
     tol.maxValue = 100.0;
     tol.stepValue = 0.1;
 
-    return {nominal, tol};
+    requirement.parameters = {nominal, tol};
+
+    TPSPortRequest dmm;
+    dmm.type = TPSPortType::DmmChannel;
+    dmm.count = 1;
+    dmm.identifiers = {QStringLiteral("dmm1")};
+    requirement.ports = {dmm};
+
+    return requirement;
+}
+
+bool ResistanceTpsPlugin::buildDevicePlan(const QVector<TPSPortBinding> &bindings,
+                                          const QMap<QString, QVariant> &settings,
+                                          TPSDevicePlan *plan,
+                                          QString *error)
+{
+    Q_UNUSED(settings)
+    if (!plan) {
+        if (error) {
+            *error = QStringLiteral("plan is null");
+        }
+        return false;
+    }
+
+    TPSDevicePlan devicePlan;
+    devicePlan.bindings = bindings;
+    devicePlan.cfg532x = build532xInitConfig(JYDeviceKind::PXIe5322);
+    devicePlan.cfg5711 = build5711InitConfig();
+    devicePlan.cfg8902 = build8902InitConfig();
+    devicePlan.cfg532x.cfg532x.channelCount = 0;
+    devicePlan.cfg532x.cfg532x.slotNumber = -1;
+    devicePlan.cfg5711.cfg5711.channelCount = 0;
+    devicePlan.cfg5711.cfg5711.slotNumber = -1;
+
+    if (!bindings.isEmpty()) {
+        devicePlan.cfg8902.cfg8902.sampleCount = 20;
+    } else {
+        devicePlan.cfg8902.cfg8902.sampleCount = 0;
+        devicePlan.cfg8902.cfg8902.slotNumber = -1;
+    }
+
+    for (const auto &binding : bindings) {
+        TPSSignalRequest request;
+        request.id = binding.identifier;
+        request.signalType = binding.identifier;
+        request.unit = QStringLiteral("ohm");
+        devicePlan.requests.push_back(request);
+    }
+
+    *plan = devicePlan;
+    return true;
 }
 
 bool ResistanceTpsPlugin::configure(const QMap<QString, QVariant> &settings, QString *error)

@@ -20,6 +20,10 @@ SOURCES += \
     FaultDiagnostic/Core/testsequencemanager.cpp \
     FaultDiagnostic/Core/deviceportplanner.cpp \
     FaultDiagnostic/Core/deviceportmanager.cpp \
+    FaultDiagnostic/Diagnostics/diagnosticdispatcher.cpp \
+    FaultDiagnostic/Diagnostics/diagnosticdatamapper.cpp \
+    FaultDiagnostic/Diagnostics/diagnosticpluginmanager.cpp \
+    FaultDiagnostic/Diagnostics/Plugins/multitpsdiagnosticplugin.cpp \
     FaultDiagnostic/Runtime/systemorchestration.cpp \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.cpp \
     FaultDiagnostic/TPS/Plugins/exampletpsplugin.cpp \
@@ -70,6 +74,13 @@ HEADERS += \
     FaultDiagnostic/Core/testsequencemanager.h \
     FaultDiagnostic/Core/deviceportplanner.h \
     FaultDiagnostic/Core/deviceportmanager.h \
+    FaultDiagnostic/Diagnostics/diagnosticdatatypes.h \
+    FaultDiagnostic/Diagnostics/diagnosticalgorithm.h \
+    FaultDiagnostic/Diagnostics/diagnosticdispatcher.h \
+    FaultDiagnostic/Diagnostics/diagnosticdatamapper.h \
+    FaultDiagnostic/Diagnostics/diagnosticplugininterface.h \
+    FaultDiagnostic/Diagnostics/diagnosticpluginmanager.h \
+    FaultDiagnostic/Diagnostics/Plugins/multitpsdiagnosticplugin.h \
     FaultDiagnostic/Runtime/systemorchestration.h \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.h \
     FaultDiagnostic/TPS/Core/tpsplugininterface.h \

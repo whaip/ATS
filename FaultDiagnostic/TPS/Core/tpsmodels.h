@@ -7,6 +7,8 @@
 #include <QVariant>
 #include <QVector>
 
+#include "../../../IODevices/JYDevices/jydevicetype.h"
+
 struct UTRItem {
     QString componentRef;
     QString planId;
@@ -35,6 +37,14 @@ enum class TPSParamType {
     Enum
 };
 
+enum class TPSPortType {
+    CurrentOutput = 0,
+    VoltageOutput,
+    CurrentInput,
+    VoltageInput,
+    DmmChannel
+};
+
 struct TPSParamDefinition {
     QString key;
     QString label;
@@ -46,6 +56,41 @@ struct TPSParamDefinition {
     QStringList enumOptions;
     QString unit;
     bool required = true;
+};
+
+struct TPSPortRequest {
+    TPSPortType type = TPSPortType::CurrentOutput;
+    int count = 1;
+    QStringList identifiers;
+};
+
+struct TPSPortBinding {
+    QString identifier;
+    TPSPortType type = TPSPortType::CurrentOutput;
+    JYDeviceKind deviceKind = JYDeviceKind::PXIe5322;
+    int channel = 0;
+    int slot = 0;
+    QString resourceId;
+};
+
+struct TPSSignalRequest {
+    QString id;
+    QString signalType;
+    double value = 0.0;
+    QString unit;
+};
+
+struct TPSDevicePlan {
+    QVector<TPSPortBinding> bindings;
+    QVector<TPSSignalRequest> requests;
+    JYDeviceConfig cfg532x;
+    JYDeviceConfig cfg5711;
+    JYDeviceConfig cfg8902;
+};
+
+struct TPSPluginRequirement {
+    QVector<TPSParamDefinition> parameters;
+    QVector<TPSPortRequest> ports;
 };
 
 #endif // TPSMODELS_H
