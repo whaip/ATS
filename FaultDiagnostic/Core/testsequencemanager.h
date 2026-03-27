@@ -16,6 +16,7 @@ class TestSequenceManager : public QObject
 public:
     struct Item {
         QString componentRef;
+        QString componentType;
         QString pluginId;
         QMap<QString, QVariant> parameters;
     };

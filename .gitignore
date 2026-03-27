@@ -10,3 +10,6 @@ include
 ComponentsDetect/model
 ComponentDiagnosticFramework/
 *.onnx
+databasemanager
+duankoufenpei
+接线引导

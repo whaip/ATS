@@ -248,9 +248,22 @@ void RuntimeServices::setThreadManager(JYThreadManager *manager)
     if (m_batchConn) {
         disconnect(m_batchConn);
     }
+    if (m_deviceStatusConn) {
+        disconnect(m_deviceStatusConn);
+    }
     m_manager = manager;
     if (m_manager && m_manager->pipeline()) {
         m_batchConn = connect(m_manager->pipeline(), &JYDataPipeline::alignedBatchReady, this, &RuntimeServices::onAlignedBatch);
+    }
+    if (m_manager) {
+        m_deviceStatusConn = connect(m_manager,
+                                     &JYThreadManager::deviceStatusChanged,
+                                     this,
+                                     [this](JYDeviceKind kind, JYDeviceState state, const QString &message) {
+                                         if (state == JYDeviceState::Faulted) {
+                                             handleDeviceFault(kind, message);
+                                         }
+                                     });
     }
 }
 
@@ -337,6 +350,7 @@ bool RuntimeServices::startRun(const QString &runId,
             mapping.append(entry);
         }
         m_mtd->recordEvent(QStringLiteral("resource_mapped"), QJsonObject{{QStringLiteral("bindings"), mapping}});
+        m_mtd->recordEvent(QStringLiteral("configure_barrier_enter"));
     }
 
     m_lastRunId = runId;
@@ -347,7 +361,12 @@ bool RuntimeServices::startRun(const QString &runId,
     m_lastConfig8902 = config8902;
 
     auto *orchestrator = m_manager->orchestrator();
-    const bool ok = orchestrator->synchronizeStart(config532x, config5711, config8902, timeoutMs);
+    qint64 barrierReleaseMs = 0;
+    const bool ok = orchestrator->synchronizeStart(config532x,
+                                                   config5711,
+                                                   config8902,
+                                                   timeoutMs,
+                                                   &barrierReleaseMs);
     if (!ok) {
         if (error) {
             *error = QStringLiteral("device orchestration failed");
@@ -355,6 +374,16 @@ bool RuntimeServices::startRun(const QString &runId,
         setState(RuntimeState::Faulted);
         emit runtimeError(error ? *error : QString());
         return false;
+    }
+
+    if (m_manager && m_manager->pipeline()) {
+        m_manager->pipeline()->setSyncAnchorMs(barrierReleaseMs);
+    }
+
+    if (m_mtd) {
+        m_mtd->recordEvent(QStringLiteral("configure_barrier_released"));
+        m_mtd->recordEvent(QStringLiteral("start_barrier_released"),
+                           QJsonObject{{QStringLiteral("t0_ms"), static_cast<qint64>(barrierReleaseMs)}});
     }
 
     setState(RuntimeState::Running);
@@ -447,6 +476,30 @@ bool RuntimeServices::abortRun(QString *error)
         m_mtd->closeSession();
     }
     return true;
+}
+
+void RuntimeServices::handleDeviceFault(JYDeviceKind kind, const QString &message)
+{
+    if (m_state != RuntimeState::Running) {
+        return;
+    }
+
+    const QString detail = QStringLiteral("device fault: kind=%1, message=%2")
+                               .arg(static_cast<int>(kind))
+                               .arg(message);
+
+    if (m_mtd) {
+        m_mtd->recordEvent(QStringLiteral("runtime_fault"),
+                           QJsonObject{{QStringLiteral("kind"), static_cast<int>(kind)},
+                                       {QStringLiteral("message"), message}});
+    }
+
+    if (m_manager && m_manager->orchestrator()) {
+        m_manager->orchestrator()->closeAll();
+    }
+
+    setState(RuntimeState::Faulted);
+    emit runtimeError(detail);
 }
 
 bool RuntimeServices::captureSnapshot(const QString &tag, QString *error)

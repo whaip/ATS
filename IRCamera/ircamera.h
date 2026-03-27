@@ -35,6 +35,9 @@ public:
     void setInputData(const QImage &irImage, const QVector<double> &temperatureMatrix, const QSize &matrixSize);
     void setStreamData(const QImage &irImage, const QVector<double> &temperatureMatrix, const QSize &matrixSize);
     void setStationEnabled(bool enabled);
+    bool firstBoxRect(QRectF *rect) const;
+    QVector<QRectF> boxRects() const;
+    int boxCount() const;
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

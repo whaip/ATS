@@ -7,29 +7,22 @@
 #include <QButtonGroup>
 #include <QStringList>
 #include <QtCore>
+#include <QMenu>
+#include <QTimer>
+
+#include <algorithm>
+#include "../componenttyperegistry.h"
 
 namespace {
+QStringList componentTypeNames()
+{
+    const QStringList names = ComponentTypeRegistry::load().types;
+    return names.isEmpty() ? ComponentTypeRegistry::defaultTypes() : names;
+}
+
 QString getComponentTypeName(int cls)
 {
-    static const QStringList names = {
-        QStringLiteral("Capacitor"),
-        QStringLiteral("IC"),
-        QStringLiteral("LED"),
-        QStringLiteral("Resistor"),
-        QStringLiteral("battery"),
-        QStringLiteral("buzzer"),
-        QStringLiteral("clock"),
-        QStringLiteral("connector"),
-        QStringLiteral("diode"),
-        QStringLiteral("display"),
-        QStringLiteral("fuse"),
-        QStringLiteral("inductor"),
-        QStringLiteral("potentiometer"),
-        QStringLiteral("relay"),
-        QStringLiteral("switch"),
-        QStringLiteral("transistor")
-    };
-
+    const QStringList names = componentTypeNames();
     if (cls >= 0 && cls < names.size()) {
         return names.at(cls);
     }
@@ -51,7 +44,9 @@ LabelEditing::LabelEditing(QWidget *parent, const QImage &image, const std::vect
     // 启用缓存背景
     setCacheMode(QGraphicsView::CacheBackground);
     // 设置视图更新模式
-    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+    setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
+    setOptimizationFlag(QGraphicsView::DontSavePainterState, true);
+    setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);
     
     setupLabelTable();
     loadImage(label_image);
@@ -64,19 +59,20 @@ LabelEditing::LabelEditing(QWidget *parent, const QImage &image, const std::vect
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     viewport()->setCursor(Qt::CrossCursor);
     setupUI();
-    updateLabelTable();
+    requestLabelTableRefresh();
 }
 
 LabelEditing::~LabelEditing()
 {
-    if (rubberBand) {
-        delete rubberBand;
-        rubberBand = nullptr;
+    if (scene) {
+        scene->clear();
     }
-    if (createRectItem) {
-        delete createRectItem;
-        createRectItem = nullptr;
-    }
+
+    rubberBand = nullptr;
+    createRectItem = nullptr;
+    selectRectItem = nullptr;
+    label_rect_item.clear();
+    label_rect_item_add.clear();
 }
 
 void LabelEditing::loadImage(const QImage &image)
@@ -140,7 +136,6 @@ void LabelEditing::loadImage(const QImage &image)
         }
     }    if(!label_info_add.empty()){
         for(int i = 0; i < label_info_add.size(); ++i){
-            label_info_add[i].id = -i;
             // 创建全新的LabelRectItem实例，确保与之前的实例完全隔离
             LabelRectItem *rectItem = new LabelRectItem(nullptr, label_info_add[i]);
             
@@ -167,7 +162,7 @@ void LabelEditing::loadImage(const QImage &image)
         }
     }
     
-    updateLabelTable();
+    requestLabelTableRefresh();
 
     // 确保首次加载后图片适配视图
     fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
@@ -191,8 +186,6 @@ void LabelEditing::setupLabelTable()
     labelTable->setColumnCount(5);
     labelTable->setHorizontalHeaderLabels({"ID", "Label", "类型", "位号", "备注"});
 
-    labelTable->hideColumn(0);
-
     labelTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     labelTable->setSelectionMode(QAbstractItemView::SingleSelection);
     labelTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -205,6 +198,7 @@ void LabelEditing::setupLabelTable()
 
 void LabelEditing::updateLabelTable()
 {
+    m_tableRefreshPending = false;
     labelTable->setRowCount(0);
 
     int row = 0;
@@ -218,16 +212,19 @@ void LabelEditing::updateLabelTable()
 
             labelTable->insertRow(row);
             // ID
-            labelTable->setItem(row, 0, new QTableWidgetItem(QString::number(id)));
+            auto *idItem = new QTableWidgetItem(QString::number(id));
+            idItem->setFlags(idItem->flags() & ~Qt::ItemIsEditable);
+            labelTable->setItem(row, 0, idItem);
             // 标签文本
             labelTable->setItem(row, 1, new QTableWidgetItem(item->getLabel()));
             // 类型下拉框
             QComboBox* typeCombo = new QComboBox(labelTable);
-            for (int i = 0; i < 16; ++i) {
-                typeCombo->addItem(getComponentTypeName(i), i);
+            const QStringList typeNames = componentTypeNames();
+            for (int i = 0; i < typeNames.size(); ++i) {
+                typeCombo->addItem(typeNames.at(i), i);
             }
             int currentCls = item->getLabelInfo().cls;
-            if (currentCls >= 0 && currentCls < 16) {
+            if (currentCls >= 0 && currentCls < typeNames.size()) {
                 typeCombo->setCurrentIndex(currentCls);
             }
             labelTable->setCellWidget(row, 2, typeCombo);
@@ -249,6 +246,17 @@ void LabelEditing::updateLabelTable()
     }
 
     labelTable->resizeColumnsToContents();
+}
+
+void LabelEditing::requestLabelTableRefresh()
+{
+    if (m_tableRefreshPending) {
+        return;
+    }
+    m_tableRefreshPending = true;
+    QTimer::singleShot(0, this, [this]() {
+        updateLabelTable();
+    });
 }
 
 void LabelEditing::onTableCellChanged(int row, int column)
@@ -316,6 +324,7 @@ void LabelEditing::onTableRowClicked(int row)
     clearAllSelection();
     int id = labelTable->item(row, 0)->text().toInt();
     selectAndCenterRectItem(id, row);
+    emit selectionChanged();
 }
 
 void LabelEditing::selectAndCenterRectItem(int labelId, int row)
@@ -421,29 +430,58 @@ void LabelEditing::resizeEvent(QResizeEvent *event)
 void LabelEditing::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::RightButton) {
+        QPointF scenePos = mapToScene(event->pos());
+        QGraphicsItem *item = scene->itemAt(scenePos, transform());
+        if (LabelRectItem *rectItem = qgraphicsitem_cast<LabelRectItem*>(item)) {
+            clearAllSelection();
+            rectItem->setSelected(true);
+            selectRectItem = rectItem;
+            setLabelTableFocus();
+            emit selectionChanged();
+
+            QMenu menu(this);
+            QAction *paramAction = menu.addAction(QStringLiteral("参数设置"));
+            QAction *selectedAction = menu.exec(event->globalPos());
+            if (selectedAction == paramAction) {
+                emit parameterConfigRequested(rectItem->getLabelInfo(), collectAllLabelIds());
+            }
+            return;
+        }
+
         origin = event->pos();
         viewport()->setCursor(Qt::ClosedHandCursor);
         QGraphicsView::mousePressEvent(event);
+        return;
     }
     if (is_editing && event->button() == Qt::LeftButton) {
+        const int selectedCountBefore = scene ? scene->selectedItems().size() : 0;
         QPointF scenePos = mapToScene(event->pos());
         QGraphicsItem *item = scene->itemAt(scenePos, transform());
         if (LabelRectItem *rectItem = qgraphicsitem_cast<LabelRectItem*>(item))
         {
             bool ctrlPressed = event->modifiers() & Qt::ControlModifier;
-            if (!ctrlPressed) {
-                clearAllSelection();
-            }
             if (ctrlPressed) {
                 // 切换当前项的选择状态
                 rectItem->setSelected(!rectItem->isSelected());
+                selectRectItem = rectItem->isSelected() ? rectItem : nullptr;
+                if (selectRectItem) {
+                    setLabelTableFocus();
+                }
+                emit selectionChanged();
+                event->accept();
+                return;
             } else {
+                clearAllSelection();
                 rectItem->setSelected(true);
+                selectRectItem = rectItem;
+                setLabelTableFocus();
             }
-            selectRectItem = rectItem;
-            setLabelTableFocus();
         }
         QGraphicsView::mousePressEvent(event);
+        const int selectedCountAfter = scene ? scene->selectedItems().size() : 0;
+        if (selectedCountAfter != selectedCountBefore) {
+            emit selectionChanged();
+        }
         return;
     }
 
@@ -456,7 +494,18 @@ void LabelEditing::mousePressEvent(QMouseEvent *event)
 
         origin = mapToScene(event->pos());
         
-        int id = label_rect_item_add.size() > 0 ? label_rect_item_add[label_rect_item_add.size() - 1]->getLabelInfo().id - 1 : 0;
+        int maxId = 0;
+        for (const auto *item : label_rect_item) {
+            if (item) {
+                maxId = qMax(maxId, item->getLabelInfo().id);
+            }
+        }
+        for (const auto *item : label_rect_item_add) {
+            if (item) {
+                maxId = qMax(maxId, item->getLabelInfo().id);
+            }
+        }
+        const int id = maxId + 1;
         Label newLabel(id, origin.x(), origin.y(), 1.0, 1.0, 0, 100.0, "-1", "-1", QByteArray());
         rubberBand = new LabelRectItem(nullptr, newLabel);
         
@@ -464,6 +513,25 @@ void LabelEditing::mousePressEvent(QMouseEvent *event)
         updateRectItemStyle(rubberBand);
         scene->addItem(rubberBand);
     }
+}
+
+QList<int> LabelEditing::collectAllLabelIds() const
+{
+    QList<int> ids;
+    for (LabelRectItem *item : label_rect_item) {
+        if (item) {
+            ids.push_back(item->getLabelInfo().id);
+        }
+    }
+    for (LabelRectItem *item : label_rect_item_add) {
+        if (item) {
+            ids.push_back(item->getLabelInfo().id);
+        }
+    }
+
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    return ids;
 }
 
 void LabelEditing::mouseReleaseEvent(QMouseEvent *event)
@@ -484,6 +552,7 @@ void LabelEditing::mouseReleaseEvent(QMouseEvent *event)
         selectRectItem = rubberBand;
         on_editButton_clicked();
         rubberBand = nullptr;
+        emit selectionChanged();
     }
 }
 
@@ -501,7 +570,6 @@ void LabelEditing::mouseMoveEvent(QMouseEvent *event)
             QPointF currentPos = mapToScene(event->pos());
             QRectF newRect(origin, currentPos);
             rubberBand->setRect(newRect);
-            scene->update();
         }
     } else {
         QGraphicsView::mouseMoveEvent(event); // 将事件传递给场景
@@ -544,7 +612,7 @@ void LabelEditing::on_finishButton_clicked()
     clearAllSelection();
     is_editing = false;
     on_createRectButton_clicked();
-    updateLabelTable();
+    requestLabelTableRefresh();
 }
 
 void LabelEditing::on_deleteButton_clicked()
@@ -554,7 +622,6 @@ void LabelEditing::on_deleteButton_clicked()
         if (selectRectItem == createRectItem) {
             createRectItem = nullptr;
             scene->removeItem(selectRectItem);
-            scene->update();
             return;
         }
         if (selectRectItem->isSelected()) {
@@ -582,9 +649,9 @@ void LabelEditing::on_deleteButton_clicked()
             }
             delete selectRectItem;
             selectRectItem = nullptr;
-            scene->update();
         }
-        updateLabelTable();
+        requestLabelTableRefresh();
+        emit selectionChanged();
     }
 }
 
@@ -651,7 +718,7 @@ void LabelEditing::reloadItems()
         label_rect_item_add.push_back(rectItem);
     }
     
-    updateLabelTable();
+    requestLabelTableRefresh();
     
     fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
 }
@@ -709,7 +776,7 @@ void LabelEditing::mouseDoubleClickEvent(QMouseEvent *event)
             Label updatedLabel = rectItem->getLabelInfo();
             emit labelUpdated(updatedLabel);
             
-            updateLabelTable();
+            requestLabelTableRefresh();
         }
     }
     QGraphicsView::mouseDoubleClickEvent(event);
@@ -717,17 +784,16 @@ void LabelEditing::mouseDoubleClickEvent(QMouseEvent *event)
 
 void LabelEditing::clearAllSelection()
 {
-    // 取消所有矩形的选中状态
-    QList<QGraphicsItem*> items = scene->items();
-    for (QGraphicsItem* item : items) {
-        if (LabelRectItem* rectItem = qgraphicsitem_cast<LabelRectItem*>(item)) {
-            rectItem->setSelected(false);
-        }
-        item->update();
-    }
-    if (selectRectItem != nullptr) {
+    if (!scene) {
         selectRectItem = nullptr;
+        return;
     }
+
+    const QList<QGraphicsItem*> selectedItems = scene->selectedItems();
+    for (QGraphicsItem* item : selectedItems) {
+        item->setSelected(false);
+    }
+    selectRectItem = nullptr;
 }
 
 void LabelEditing::getAllLabelItemInfo(std::vector<Label> &result_label_info)
@@ -901,7 +967,7 @@ std::vector<Label> LabelEditing::getSelectedLabelItemInfos() const
 
 void LabelEditing::refreshTable()
 {
-    updateLabelTable();
+    requestLabelTableRefresh();
 }
 
 void LabelEditing::fullReset()

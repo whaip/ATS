@@ -23,6 +23,13 @@ void JYDataPipeline::setAlignSettings(const JYDataAligner::Settings &settings)
     }
 }
 
+void JYDataPipeline::setSyncAnchorMs(qint64 anchorMs)
+{
+    if (m_aligner) {
+        m_aligner->setSyncAnchorMs(anchorMs);
+    }
+}
+
 void JYDataPipeline::ingest(const JYDataPacket &packet)
 {
     QString reason;
@@ -37,6 +44,7 @@ void JYDataPipeline::ingest(const JYDataPacket &packet)
         return;
     }
     emit packetIngested(packet.kind, packet.channelCount, packet.data.size(), packet.timestampMs);
+    emit packetReady(packet);
     if (m_aligner) {
         m_aligner->ingest(packet);
     }

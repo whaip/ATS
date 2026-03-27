@@ -1,7 +1,9 @@
 #include "yolomodel.h"
 #include <filesystem>
 #include <onnxruntime/onnxruntime_cxx_api.h>
+#include <QCoreApplication>
 #include <QDebug>
+#include <QDir>
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -12,7 +14,8 @@ YOLOModel::YOLOModel()
     : env(std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "yolomodel")),
     session_options(),
     session(),
-    memory_info(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeCPU))
+    memory_info(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeCPU)),
+    model_path(defaultModelPath().toStdWString())
 {
     loadModel();
 }
@@ -38,6 +41,14 @@ void YOLOModel::setModelPath(const QString &modelPath)
         return;
     }
     model_path = modelPath.toStdWString();
+}
+
+QString YOLOModel::defaultModelPath()
+{
+    const QString baseDir = QCoreApplication::instance()
+        ? QCoreApplication::applicationDirPath()
+        : QDir::currentPath();
+    return QDir(baseDir).filePath(QStringLiteral("model/best.onnx"));
 }
 
 void YOLOModel::loadModel(){

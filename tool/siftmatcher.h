@@ -44,24 +44,32 @@ public:
                                 std::vector<std::string>& board_id);
 
     // 提取特征描述符
-    cv::Mat extractDescriptor(const cv::Mat& image, int rotation = -1);
+    cv::Mat extractDescriptor(const cv::Mat& image,
+                              int rotation = -1,
+                              bool imageIsPcbCrop = false);
 
-    std::vector<MatchResult> matchImage(const cv::Mat& inputImage);
+    std::vector<MatchResult> matchImage(const cv::Mat& inputImage,
+                                        bool imageIsPcbCrop = false);
+
+    void setDatabasePath(const std::string& filename);
 
     // 检查GPU是否可用
     bool checkGPU();
 
     // 添加新的函数来追加图片到数据库
-    void appendToDatabase(const std::vector<std::string>& boardid, const std::vector<cv::Mat>& images);
+    void appendToDatabase(const std::vector<std::string>& boardid,
+                          const std::vector<cv::Mat>& images,
+                          bool imagesArePcbCrops = false);
 
     // 从数据库中删除指定图片的描述符
-    static bool removeFromDatabase(const std::string& DeleteImage);
+    bool removeFromDatabase(const std::string& DeleteImage);
 
 private:
     explicit SiftMatcher();
     ~SiftMatcher();
     cv::Ptr<cv::cuda::ORB> gpu_detector;
     cv::Ptr<cv::cuda::DescriptorMatcher> gpu_matcher;
+    std::string m_databasePath = "descriptors_database.yml";
     
     // 计算两个描述符之间的匹配分数
     MatchResult computeMatchScore(const cv::Mat& queryDesc,

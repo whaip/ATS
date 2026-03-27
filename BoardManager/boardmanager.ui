@@ -100,6 +100,13 @@
            </property>
           </widget>
          </item>
+                 <item>
+                    <widget class="QPushButton" name="buttonAutoRecognizeBoard">
+                     <property name="text">
+                        <string>自动识别</string>
+                     </property>
+                    </widget>
+                 </item>
          <item>
           <widget class="QPushButton" name="buttonDeleteBoard">
            <property name="text">
@@ -232,13 +239,6 @@
           </item>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_bindingsActions">
-           <item>
-            <widget class="QPushButton" name="buttonEditAnchors">
-             <property name="text">
-              <string>编辑锚点</string>
-             </property>
-            </widget>
-           </item>
            <item>
             <widget class="QPushButton" name="buttonEditPlanBindings">
              <property name="text">

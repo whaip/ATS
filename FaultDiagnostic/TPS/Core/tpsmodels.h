@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QMap>
 #include <QString>
+#include <QStringList>
 #include <QVariant>
 #include <QVector>
 
@@ -69,7 +70,6 @@ struct TPSPortBinding {
     TPSPortType type = TPSPortType::CurrentOutput;
     JYDeviceKind deviceKind = JYDeviceKind::PXIe5322;
     int channel = 0;
-    int slot = 0;
     QString resourceId;
 };
 
@@ -80,9 +80,18 @@ struct TPSSignalRequest {
     QString unit;
 };
 
+struct TPSWorkflowGuide {
+    QStringList wiringSteps;
+    QStringList roiSteps;
+    QMap<QString, QVariant> extensions;
+};
+
 struct TPSDevicePlan {
     QVector<TPSPortBinding> bindings;
     QVector<TPSSignalRequest> requests;
+    QStringList wiringSteps;
+    QString temperatureGuide;
+    TPSWorkflowGuide guide;
     JYDeviceConfig cfg532x;
     JYDeviceConfig cfg5711;
     JYDeviceConfig cfg8902;

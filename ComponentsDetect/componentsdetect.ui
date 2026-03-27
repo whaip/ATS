@@ -531,7 +531,7 @@
         </font>
        </property>
        <property name="text">
-        <string>基于YOLOv10的PCB元器件检测工具</string>
+        <string>基于YOLO26的PCB元器件检测工具</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignmentFlag::AlignCenter</set>

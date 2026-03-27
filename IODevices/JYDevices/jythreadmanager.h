@@ -26,6 +26,9 @@ public:
 
     void shutdown();
 
+signals:
+    void deviceStatusChanged(JYDeviceKind kind, JYDeviceState state, const QString &message);
+
 private:
     QVector<JYDeviceWorker *> m_workers;
     JYDeviceOrchestrator *m_orchestrator = nullptr;

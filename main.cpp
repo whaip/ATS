@@ -8,12 +8,14 @@
 #include "HDCamera/camerastation.h"
 
 #include <QApplication>
+#include <QIcon>
 
 #include <thread>
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+    a.setWindowIcon(QIcon(QStringLiteral(":/icons/app_icon.png")));
 
     Logger::init();
 
@@ -36,6 +38,7 @@ int main(int argc, char *argv[])
     }).detach();
 
     MainWindow w;
+    w.setWindowIcon(QIcon(QStringLiteral(":/icons/app_icon.png")));
     w.show();
     return a.exec();
 }

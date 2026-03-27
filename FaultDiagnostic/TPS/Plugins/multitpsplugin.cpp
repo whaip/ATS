@@ -1,5 +1,7 @@
 #include "multitpsplugin.h"
 
+#include "../Core/tpsruntimecontext.h"
+
 #include "../../../IODevices/JYDevices/5711waveformconfig.h"
 #include "../../../IODevices/JYDevices/jydeviceconfigutils.h"
 
@@ -12,6 +14,38 @@ PXIe5711_testtype waveformFromString(const QString &value)
         }
     }
     return PXIe5711_testtype::HighLevelWave;
+}
+
+QString deviceKindName(JYDeviceKind kind)
+{
+    switch (kind) {
+    case JYDeviceKind::PXIe5322:
+        return QStringLiteral("PXIe5322");
+    case JYDeviceKind::PXIe5323:
+        return QStringLiteral("PXIe5323");
+    case JYDeviceKind::PXIe5711:
+        return QStringLiteral("PXIe5711");
+    case JYDeviceKind::PXIe8902:
+        return QStringLiteral("PXIe8902");
+    }
+    return QStringLiteral("Unknown");
+}
+
+QString portTypeText(TPSPortType type)
+{
+    switch (type) {
+    case TPSPortType::CurrentOutput:
+        return QStringLiteral("电流输出");
+    case TPSPortType::VoltageOutput:
+        return QStringLiteral("电压输出");
+    case TPSPortType::CurrentInput:
+        return QStringLiteral("电流输入");
+    case TPSPortType::VoltageInput:
+        return QStringLiteral("电压输入");
+    case TPSPortType::DmmChannel:
+        return QStringLiteral("万用表通道");
+    }
+    return QStringLiteral("Unknown");
 }
 }
 
@@ -83,6 +117,16 @@ TPSPluginRequirement MultiSignalTpsPlugin::requirements() const
     tolerance.maxValue = 100.0;
     tolerance.stepValue = 0.1;
     requirement.parameters.push_back(tolerance);
+
+    TPSParamDefinition captureMs;
+    captureMs.key = QStringLiteral("captureDurationMs");
+    captureMs.label = QStringLiteral("采集时间(ms)");
+    captureMs.type = TPSParamType::Integer;
+    captureMs.defaultValue = 1000;
+    captureMs.minValue = 1;
+    captureMs.maxValue = 60000;
+    captureMs.stepValue = 10;
+    requirement.parameters.push_back(captureMs);
 
     const QVector<PXIe5711_testtype> waveformOptions = PXIe5711_waveform_options();
     QStringList waveformNames;
@@ -263,7 +307,20 @@ bool MultiSignalTpsPlugin::buildDevicePlan(const QVector<TPSPortBinding> &bindin
         }
 
         devicePlan.requests.push_back(request);
+
+        devicePlan.wiringSteps.push_back(
+            QStringLiteral("%1 → %2.CH%3 (%4)")
+                .arg(binding.identifier,
+                     deviceKindName(binding.deviceKind))
+                .arg(binding.channel)
+                .arg(portTypeText(binding.type)));
     }
+
+    devicePlan.temperatureGuide = QStringLiteral("请在目标器件区域框选测温ROI");
+    devicePlan.guide.wiringSteps = devicePlan.wiringSteps;
+    devicePlan.guide.roiSteps = {devicePlan.temperatureGuide};
+    devicePlan.guide.extensions.insert(QStringLiteral("pluginId"), pluginId());
+    devicePlan.guide.extensions.insert(QStringLiteral("mode"), settings.value(QStringLiteral("mode")));
 
     *plan = devicePlan;
     return true;
@@ -273,6 +330,7 @@ bool MultiSignalTpsPlugin::configure(const QMap<QString, QVariant> &settings, QS
 {
     Q_UNUSED(error)
     m_settings = settings;
+    m_allocatedBindings = TPSRuntimeContext::decodeBindings(settings.value(TPSRuntimeContext::allocatedBindingsKey()));
     return true;
 }
 

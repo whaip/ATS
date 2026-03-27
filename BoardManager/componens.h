@@ -1,5 +1,5 @@
-#ifndef BOARDDATAMANAGER_H
-#define BOARDDATAMANAGER_H
+#ifndef COMPONENS_H
+#define COMPONENS_H
 
 #include <QRectF>
 #include <QString>
@@ -7,6 +7,7 @@
 #include "boardprofile.h"
 
 struct BoardComponentRecord {
+    int id = 0;
     QString reference;
     QString type;
     QString model;
@@ -29,15 +30,10 @@ struct BoardAnchorRecord {
     QVector<AnchorPoint> anchors;
 };
 
-struct BoardPlanBindingRecord {
-    QString boardName;
-    QVector<ComponentPlanBinding> bindings;
-};
-
-class BoardDataManager
+class Componens
 {
 public:
-    explicit BoardDataManager(const QString &storageDir = QString());
+    explicit Componens(const QString &storageDir = QString());
 
     void setStorageDir(const QString &storageDir);
     QString storageDir() const;
@@ -47,8 +43,6 @@ public:
 
     const QVector<BoardInfoRecord> &boards() const;
     const QVector<BoardAnchorRecord> &anchors() const;
-    const QVector<BoardPlanBindingRecord> &planBindings() const;
-
     bool addBoard(const BoardInfoRecord &board);
     bool updateBoard(const BoardInfoRecord &board);
     bool removeBoard(const QString &boardName);
@@ -61,32 +55,21 @@ public:
     bool removeAnchors(const QString &boardName, const QString &componentRef);
     void clearAnchors(const QString &boardName);
 
-    bool upsertPlanBinding(const QString &boardName, const ComponentPlanBinding &binding);
-    bool removePlanBinding(const QString &boardName, const QString &componentRef, const QString &planId);
-    void clearPlanBindings(const QString &boardName);
+    int allocateComponentId(const QString &boardName);
 
 private:
     int findBoardIndex(const QString &boardName) const;
     int findAnchorIndex(const QString &boardName, const QString &componentRef) const;
-    int findPlanBindingIndex(const QString &boardName) const;
-
     QJsonObject boardToJson(const BoardInfoRecord &board) const;
     QJsonObject componentToJson(const BoardComponentRecord &component) const;
     QJsonObject anchorToJson(const BoardAnchorRecord &record) const;
-    QJsonObject planBindingToJson(const BoardPlanBindingRecord &record) const;
-
     BoardInfoRecord boardFromJson(const QJsonObject &obj) const;
     BoardComponentRecord componentFromJson(const QJsonObject &obj) const;
     BoardAnchorRecord anchorFromJson(const QJsonObject &obj) const;
-    BoardPlanBindingRecord planBindingFromJson(const QJsonObject &obj) const;
-    QJsonObject temperatureSpecToJson(const TemperatureSpec &spec) const;
-    TemperatureSpec temperatureSpecFromJson(const QJsonObject &obj) const;
     int computeNextComponentIndex(const QVector<BoardComponentRecord> &components) const;
 
     QString m_storageDir;
     QVector<BoardInfoRecord> m_boards;
     QVector<BoardAnchorRecord> m_anchors;
-    QVector<BoardPlanBindingRecord> m_planBindings;
 };
-
-#endif // BOARDDATAMANAGER_H
+#endif // COMPONENS_H

@@ -1,5 +1,6 @@
 <!DOCTYPE RCC><RCC version="1.0">
   <qresource prefix="/">
+    <file alias="icons/app_icon.png">build/release/ATS.png</file>
     <file alias="styles/default.qss">styles/default.qss</file>
     <file alias="styles/light.qss">styles/light.qss</file>
     <file alias="styles/componentsdetect_dark.qss">styles/componentsdetect_dark.qss</file>

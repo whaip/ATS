@@ -10,24 +10,39 @@ CONFIG += c++17
 
 SOURCES += \
     BoardManager/boardmanager.cpp \
-    BoardManager/boarddatamanager.cpp \
     ComponentsDetect/componentsdetect.cpp \
     ComponentsDetect/yolomodel.cpp \
     ComponentsDetect/yolostation.cpp \
     ComponentsDetect/yolostationclient.cpp \
     FaultDiagnostic/UI/configurationwindow.cpp \
     FaultDiagnostic/UI/faultdiagnostic.cpp \
+    FaultDiagnostic/Workflow/BatchParameterReview/batchparamreviewdialog.cpp \
+    FaultDiagnostic/Workflow/PortAllocation/portallocationreviewdialog.cpp \
+    FaultDiagnostic/Workflow/TemperatureRoi/temperatureroiselectdialog.cpp \
+    FaultDiagnostic/Workflow/WiringGuide/wiringguidedialog.cpp \
     FaultDiagnostic/Core/testsequencemanager.cpp \
+    FaultDiagnostic/Core/testtaskcontextmanager.cpp \
     FaultDiagnostic/Core/deviceportplanner.cpp \
     FaultDiagnostic/Core/deviceportmanager.cpp \
+    FaultDiagnostic/Core/deviceportmanager/deviceportmanager/deviceportmanagerwidget.cpp \
+    FaultDiagnostic/Core/captureddatamanager.cpp \
     FaultDiagnostic/Diagnostics/diagnosticdispatcher.cpp \
     FaultDiagnostic/Diagnostics/diagnosticdatamapper.cpp \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.cpp \
+    FaultDiagnostic/Diagnostics/Plugins/capacitordiagnosticplugin.cpp \
+    FaultDiagnostic/Diagnostics/Plugins/inductordiagnosticplugin.cpp \
     FaultDiagnostic/Diagnostics/Plugins/multitpsdiagnosticplugin.cpp \
+    FaultDiagnostic/Diagnostics/Plugins/resistordiagnosticplugin.cpp \
+    FaultDiagnostic/Diagnostics/Plugins/transistordiagnosticplugin.cpp \
     FaultDiagnostic/Runtime/systemorchestration.cpp \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.cpp \
+    FaultDiagnostic/TPS/Manager/tpsbuiltinregistry.cpp \
+    FaultDiagnostic/TPS/Core/tpsruntimecontext.cpp \
     FaultDiagnostic/TPS/Plugins/exampletpsplugin.cpp \
     FaultDiagnostic/TPS/Plugins/resistancetpsplugin.cpp \
+    FaultDiagnostic/TPS/Plugins/capacitortpsplugin.cpp \
+    FaultDiagnostic/TPS/Plugins/inductortpsplugin.cpp \
+    FaultDiagnostic/TPS/Plugins/transistortpsplugin.cpp \
     FaultDiagnostic/TPS/Plugins/multitpsplugin.cpp \
     HDCamera/hdcamera.cpp \
     HDCamera/camerastation.cpp \
@@ -54,6 +69,9 @@ SOURCES += \
     mainwindow.cpp \
     pagebuttonmanager.cpp \
     stylemanager.cpp \
+    boardrepository.cpp \
+    componenttyperegistry.cpp \
+    tpsparamservice.cpp \
     tool/labelrectitem.cpp \
     tool/labelediting.cpp \
     tool/lebalitemmanager.cpp \
@@ -63,7 +81,6 @@ SOURCES += \
 
 HEADERS += \
     BoardManager/boardmanager.h \
-    BoardManager/boarddatamanager.h \
     ComponentsDetect/componentsdetect.h \
     ComponentsDetect/componenttypes.h \
     ComponentsDetect/yolomodel.h \
@@ -71,22 +88,38 @@ HEADERS += \
     ComponentsDetect/yolostationclient.h \
     FaultDiagnostic/UI/configurationwindow.h \
     FaultDiagnostic/UI/faultdiagnostic.h \
+    FaultDiagnostic/Workflow/BatchParameterReview/batchparamreviewdialog.h \
+    FaultDiagnostic/Workflow/PortAllocation/portallocationreviewdialog.h \
+    FaultDiagnostic/Workflow/TemperatureRoi/temperatureroiselectdialog.h \
+    FaultDiagnostic/Workflow/WiringGuide/wiringguidedialog.h \
     FaultDiagnostic/Core/testsequencemanager.h \
+    FaultDiagnostic/Core/testtaskcontextmanager.h \
     FaultDiagnostic/Core/deviceportplanner.h \
     FaultDiagnostic/Core/deviceportmanager.h \
+    FaultDiagnostic/Core/deviceportmanager/deviceportmanager/deviceportmanagerwidget.h \
+    FaultDiagnostic/Core/captureddatamanager.h \
     FaultDiagnostic/Diagnostics/diagnosticdatatypes.h \
     FaultDiagnostic/Diagnostics/diagnosticalgorithm.h \
     FaultDiagnostic/Diagnostics/diagnosticdispatcher.h \
     FaultDiagnostic/Diagnostics/diagnosticdatamapper.h \
     FaultDiagnostic/Diagnostics/diagnosticplugininterface.h \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.h \
+    FaultDiagnostic/Diagnostics/Plugins/capacitordiagnosticplugin.h \
+    FaultDiagnostic/Diagnostics/Plugins/inductordiagnosticplugin.h \
     FaultDiagnostic/Diagnostics/Plugins/multitpsdiagnosticplugin.h \
+    FaultDiagnostic/Diagnostics/Plugins/resistordiagnosticplugin.h \
+    FaultDiagnostic/Diagnostics/Plugins/transistordiagnosticplugin.h \
     FaultDiagnostic/Runtime/systemorchestration.h \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.h \
+    FaultDiagnostic/TPS/Manager/tpsbuiltinregistry.h \
     FaultDiagnostic/TPS/Core/tpsplugininterface.h \
     FaultDiagnostic/TPS/Core/tpsmodels.h \
+    FaultDiagnostic/TPS/Core/tpsruntimecontext.h \
     FaultDiagnostic/TPS/Plugins/exampletpsplugin.h \
     FaultDiagnostic/TPS/Plugins/resistancetpsplugin.h \
+    FaultDiagnostic/TPS/Plugins/capacitortpsplugin.h \
+    FaultDiagnostic/TPS/Plugins/inductortpsplugin.h \
+    FaultDiagnostic/TPS/Plugins/transistortpsplugin.h \
     FaultDiagnostic/TPS/Plugins/multitpsplugin.h \
     FaultDiagnostic/Core/testplan.h \
     HDCamera/hdcamera.h \
@@ -118,6 +151,9 @@ HEADERS += \
     mainwindow.h \
     pagebuttonmanager.h \
     stylemanager.h \
+    boardrepository.h \
+    componenttyperegistry.h \
+    tpsparamservice.h \
     tool/labelrectitem.h \
     tool/labelediting.h \
     tool/lebalitemmanager.h \
@@ -130,6 +166,9 @@ FORMS += \
     ComponentsDetect/componentsdetect.ui \
     FaultDiagnostic/UI/configurationwindow.ui \
     FaultDiagnostic/UI/faultdiagnostic.ui \
+    FaultDiagnostic/Workflow/PortAllocation/portallocationreviewdialog.ui \
+    FaultDiagnostic/Workflow/WiringGuide/wiringguidedialog.ui \
+    FaultDiagnostic/Core/deviceportmanager/deviceportmanager/deviceportmanager.ui \
     HDCamera/hdcamera.ui \
     IODevices/DataCaptureCard/datacapturecard.ui \
     IODevices/DataGenerateCard/datageneratecard.ui \
@@ -147,6 +186,8 @@ INCLUDEPATH += include \
 
 # 库路径
 win32 {
+    RC_ICONS = $$PWD/build/release/app.ico
+
     CONFIG(debug, debug|release) {
         DESTDIR = $$PWD/build/debug
     } else {
@@ -155,6 +196,10 @@ win32 {
 
     # 复制必要的DLL文件
     QMAKE_POST_LINK += $$quote(xcopy /Y /Q $$shell_path($$PWD/bin/*.dll) $$shell_path($$DESTDIR) > nul$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(copy /Y $$shell_path($$PWD/build/release/app.ico) $$shell_path($$DESTDIR\\app.ico) > nul$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(copy /Y $$shell_path($$PWD/build/release/ATS.png) $$shell_path($$DESTDIR\\ATS.png) > nul$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(if not exist $$shell_path($$DESTDIR\\model) mkdir $$shell_path($$DESTDIR\\model)$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(xcopy /Y /Q $$shell_path($$PWD/ComponentsDetect/model/*) $$shell_path($$DESTDIR\\model\\) > nul$$escape_expand(\n\t))
 
     LIBS += -L$$PWD/lib/windows -L$$PWD/lib/pxie5320 -L$$PWD/lib/pxie5711 -L$$PWD/lib/pxie8902
     LIBS += -L$$PWD/lib/fftw -L$$PWD/lib/opencv_release -L$$PWD/lib/onnxruntime

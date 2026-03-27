@@ -50,32 +50,15 @@
       <property name="spacing">
        <number>10</number>
       </property>
-      <item>
-       <widget class="QPushButton" name="pbTest">
+     <item>
+      <widget class="QLabel" name="labelComponents">
         <property name="text">
-         <string>测试</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="labelComponents">
-        <property name="text">
-         <string>器件列表</string>
+         <string>测试任务</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QListWidget" name="listComponents"/>
-      </item>
-      <item>
-       <widget class="QLabel" name="labelHint">
-        <property name="text">
-         <string>选择器件以刷新展示</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignmentFlag::AlignCenter</set>
-        </property>
-       </widget>
       </item>
      </layout>
     </widget>
@@ -85,29 +68,6 @@
      <property name="orientation">
       <enum>Qt::Orientation::Vertical</enum>
      </property>
-     <widget class="QGroupBox" name="groupThermal">
-      <property name="title">
-       <string>温度图像</string>
-      </property>
-      <layout class="QVBoxLayout" name="thermalLayout">
-       <item>
-        <widget class="QWidget" name="thermalContainer" native="true"/>
-       </item>
-       <item>
-        <widget class="QLabel" name="labelThermalHint">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="text">
-          <string>鼠标悬停显示温度</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
      <widget class="QGroupBox" name="groupPlot">
       <property name="title">
        <string>数据展示</string>
@@ -118,15 +78,43 @@
        </item>
       </layout>
      </widget>
-     <widget class="QGroupBox" name="groupReport">
-      <property name="title">
-       <string>诊断报告</string>
+     <widget class="QSplitter" name="splitterBottom">
+      <property name="orientation">
+       <enum>Qt::Orientation::Horizontal</enum>
       </property>
-      <layout class="QVBoxLayout" name="reportLayout">
-       <item>
-        <widget class="QWidget" name="reportContainer" native="true"/>
-       </item>
-      </layout>
+      <widget class="QGroupBox" name="groupReport">
+       <property name="title">
+        <string>诊断报告</string>
+       </property>
+       <layout class="QVBoxLayout" name="reportLayout">
+        <item>
+         <widget class="QWidget" name="reportContainer" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QGroupBox" name="groupThermal">
+       <property name="title">
+        <string>温度图像</string>
+       </property>
+       <layout class="QVBoxLayout" name="thermalLayout">
+        <item>
+         <widget class="QWidget" name="thermalContainer" native="true"/>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelThermalHint">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>鼠标悬停显示温度</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </widget>
    </item>

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1280</width>
-    <height>722</height>
+    <height>768</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -30,191 +30,6 @@
     <property name="bottomMargin">
      <number>12</number>
     </property>
-    <item>
-     <widget class="QFrame" name="sidebarFrame">
-      <property name="minimumSize">
-       <size>
-        <width>120</width>
-        <height>0</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>160</width>
-        <height>16777215</height>
-       </size>
-      </property>
-      <property name="frameShape">
-       <enum>QFrame::Shape::StyledPanel</enum>
-      </property>
-      <property name="frameShadow">
-       <enum>QFrame::Shadow::Raised</enum>
-      </property>
-      <layout class="QVBoxLayout" name="sidebarLayout">
-       <property name="spacing">
-        <number>8</number>
-       </property>
-       <item>
-        <spacer name="sidebarTopSpacer">
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>6</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item>
-        <widget class="QWidget" name="widget" native="true">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="cursor">
-          <cursorShape>PointingHandCursor</cursorShape>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout">
-          <item>
-           <widget class="QToolButton" name="navMaintain">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>维护</string>
-            </property>
-            <property name="checkable">
-             <bool>false</bool>
-            </property>
-            <property name="toolButtonStyle">
-             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="navSetting">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>设置</string>
-            </property>
-            <property name="checkable">
-             <bool>false</bool>
-            </property>
-            <property name="toolButtonStyle">
-             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="FaultDiagnostic">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>故障诊断</string>
-            </property>
-            <property name="checkable">
-             <bool>false</bool>
-            </property>
-            <property name="toolButtonStyle">
-             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="navIRCamera">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>测温</string>
-            </property>
-            <property name="checkable">
-             <bool>false</bool>
-            </property>
-            <property name="checked">
-             <bool>false</bool>
-            </property>
-            <property name="toolButtonStyle">
-             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="btnDataGenerateCard">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>数据生成</string>
-            </property>
-            <property name="checkable">
-             <bool>false</bool>
-            </property>
-            <property name="toolButtonStyle">
-             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="btnDataCaptureCard">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>数据采集</string>
-            </property>
-            <property name="checkable">
-             <bool>false</bool>
-            </property>
-            <property name="toolButtonStyle">
-             <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <spacer name="sidebarBottomSpacer">
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-      </layout>
-     </widget>
-    </item>
     <item>
      <widget class="QFrame" name="mainFrame">
       <property name="frameShape">
@@ -271,26 +86,6 @@
              <bool>false</bool>
             </property>
             <property name="checked">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="tabReferenceRange">
-            <property name="text">
-             <string>参考范围</string>
-            </property>
-            <property name="checkable">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="tabDetectMode">
-            <property name="text">
-             <string>检测模式</string>
-            </property>
-            <property name="checkable">
              <bool>false</bool>
             </property>
            </widget>
@@ -794,8 +589,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>459</width>
-                <height>511</height>
+                <width>515</width>
+                <height>550</height>
                </rect>
               </property>
               <layout class="QGridLayout" name="formGrid">
@@ -861,43 +656,137 @@
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
          <property name="frameShape">
           <enum>QFrame::Shape::NoFrame</enum>
          </property>
          <layout class="QHBoxLayout" name="bottomLayout">
           <property name="spacing">
-           <number>10</number>
+           <number>8</number>
+          </property>
+          <property name="leftMargin">
+           <number>8</number>
+          </property>
+          <property name="topMargin">
+           <number>6</number>
+          </property>
+          <property name="rightMargin">
+           <number>8</number>
+          </property>
+          <property name="bottomMargin">
+           <number>6</number>
           </property>
           <item>
            <widget class="QToolButton" name="btnPagePrev">
+            <property name="minimumSize">
+             <size>
+              <width>34</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>34</width>
+              <height>30</height>
+             </size>
+            </property>
             <property name="text">
              <string>&lt;</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QWidget" name="pageButtonsContainer" native="true">
-            <layout class="QHBoxLayout" name="pageButtonsLayout">
-             <property name="spacing">
-              <number>6</number>
+           <widget class="QScrollArea" name="pageButtonsScrollArea">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>1</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>36</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>36</height>
+             </size>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::Shape::NoFrame</enum>
+            </property>
+            <property name="verticalScrollBarPolicy">
+             <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+            </property>
+            <property name="horizontalScrollBarPolicy">
+             <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+            </property>
+            <property name="sizeAdjustPolicy">
+             <enum>QAbstractScrollArea::SizeAdjustPolicy::AdjustIgnored</enum>
+            </property>
+            <property name="widgetResizable">
+             <bool>false</bool>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+            </property>
+            <widget class="QWidget" name="pageButtonsContainer">
+             <property name="geometry">
+              <rect>
+               <x>0</x>
+               <y>3</y>
+               <width>400</width>
+               <height>30</height>
+              </rect>
              </property>
-             <property name="leftMargin">
-              <number>0</number>
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
              </property>
-             <property name="topMargin">
-              <number>0</number>
-             </property>
-             <property name="rightMargin">
-              <number>0</number>
-             </property>
-             <property name="bottomMargin">
-              <number>0</number>
-             </property>
-            </layout>
+             <layout class="QHBoxLayout" name="pageButtonsLayout">
+              <property name="spacing">
+               <number>6</number>
+              </property>
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+             </layout>
+            </widget>
            </widget>
           </item>
           <item>
            <widget class="QToolButton" name="btnPageNext">
+            <property name="minimumSize">
+             <size>
+              <width>34</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>34</width>
+              <height>30</height>
+             </size>
+            </property>
             <property name="text">
              <string>&gt;</string>
             </property>
@@ -919,16 +808,37 @@
           </item>
           <item>
            <widget class="QLineEdit" name="editJumpPage">
+            <property name="minimumSize">
+             <size>
+              <width>52</width>
+              <height>30</height>
+             </size>
+            </property>
             <property name="maximumSize">
              <size>
               <width>60</width>
-              <height>16777215</height>
+              <height>30</height>
              </size>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="btnGo">
+            <property name="minimumSize">
+             <size>
+              <width>50</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>80</width>
+              <height>30</height>
+             </size>
+            </property>
             <property name="text">
              <string>GO</string>
             </property>
@@ -941,44 +851,167 @@
             </property>
             <property name="sizeHint" stdset="0">
              <size>
-              <width>40</width>
+              <width>24</width>
               <height>20</height>
              </size>
             </property>
            </spacer>
           </item>
           <item>
-           <widget class="QPushButton" name="btnWashCommon">
+           <widget class="QToolButton" name="navSetting">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>84</width>
+              <height>34</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>120</width>
+              <height>34</height>
+             </size>
+            </property>
             <property name="text">
-             <string>清洗液通用设置</string>
+             <string>设置</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextOnly</enum>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="btnDetectGroup">
+           <widget class="QToolButton" name="navIRCamera">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>84</width>
+              <height>34</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>120</width>
+              <height>34</height>
+             </size>
+            </property>
             <property name="text">
-             <string>检测组合设置</string>
+             <string>测温</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextOnly</enum>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="btnAddProject">
+           <widget class="QToolButton" name="FaultDiagnostic">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>92</width>
+              <height>34</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>128</width>
+              <height>34</height>
+             </size>
+            </property>
             <property name="text">
-             <string>添加项目</string>
+             <string>故障诊断</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextOnly</enum>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="btnDeleteProject">
+           <widget class="QToolButton" name="btnDataGenerateCard">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>92</width>
+              <height>34</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>128</width>
+              <height>34</height>
+             </size>
+            </property>
             <property name="text">
-             <string>删除项目</string>
+             <string>数据生成</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextOnly</enum>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="btnBarcodeInput">
+           <widget class="QToolButton" name="btnDataCaptureCard">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>92</width>
+              <height>34</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>128</width>
+              <height>34</height>
+             </size>
+            </property>
             <property name="text">
-             <string>条码录入</string>
+             <string>数据采集</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="toolButtonStyle">
+             <enum>Qt::ToolButtonStyle::ToolButtonTextOnly</enum>
             </property>
            </widget>
           </item>
@@ -1001,30 +1034,30 @@
    </property>
    <widget class="QMenu" name="menu">
     <property name="title">
-     <string>文件</string>
+     <string>页面</string>
     </property>
     <addaction name="actionl"/>
     <addaction name="actiong"/>
-    <addaction name="separator"/>
     <addaction name="actionsss"/>
     <addaction name="separator"/>
     <addaction name="actionlll"/>
    </widget>
    <widget class="QMenu" name="menu_2">
     <property name="title">
-     <string>系统</string>
+     <string>设备</string>
     </property>
     <addaction name="actionf"/>
     <addaction name="actionf_2"/>
-    <addaction name="separator"/>
     <addaction name="actionf_3"/>
-    <addaction name="separator"/>
     <addaction name="actionf_4"/>
+    <addaction name="separator"/>
+    <addaction name="actionInitInfrared"/>
    </widget>
    <widget class="QMenu" name="menu_3">
     <property name="title">
      <string>工具</string>
     </property>
+    <addaction name="actiong_2"/>
     <addaction name="actionxiangji"/>
     <addaction name="actionpcb"/>
     <addaction name="actionpcb_2"/>
@@ -1051,22 +1084,22 @@
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionl">
    <property name="text">
-    <string>加载测试序列</string>
+    <string>元件-插件管理</string>
    </property>
   </action>
   <action name="actiong">
    <property name="text">
-    <string>保存测试序列</string>
+    <string>故障诊断页面</string>
    </property>
   </action>
   <action name="actiong_2">
    <property name="text">
-    <string>g</string>
+    <string>元器件识别</string>
    </property>
   </action>
   <action name="actionsss">
    <property name="text">
-    <string>导出结果</string>
+    <string>板卡管理</string>
    </property>
   </action>
   <action name="actionlll">
@@ -1076,42 +1109,42 @@
   </action>
   <action name="actionf">
    <property name="text">
-    <string>初始化设备</string>
+    <string>初始化 JY5711</string>
    </property>
   </action>
   <action name="actionf_2">
    <property name="text">
-    <string>关闭设备</string>
+    <string>初始化  JY5322</string>
    </property>
   </action>
   <action name="actionf_3">
    <property name="text">
-    <string>设备管理器测试</string>
+    <string>初始化 JY5323</string>
    </property>
   </action>
   <action name="actionf_4">
    <property name="text">
-    <string>接线引导</string>
+    <string>初始化 JY8902</string>
    </property>
   </action>
   <action name="actionxiangji">
    <property name="text">
-    <string>相机管理</string>
+    <string>红外摄像头</string>
    </property>
   </action>
   <action name="actionpcb">
    <property name="text">
-    <string>板卡管理</string>
+    <string>数据采集</string>
    </property>
   </action>
   <action name="actionpcb_2">
    <property name="text">
-    <string>板卡综合分析</string>
+    <string>数据生成</string>
    </property>
   </action>
   <action name="actionguanyu">
    <property name="text">
-    <string>关于</string>
+    <string>关于 ATS</string>
    </property>
   </action>
   <action name="DarkTheme">
@@ -1122,6 +1155,11 @@
   <action name="LightTheme">
    <property name="text">
     <string>浅色主题</string>
+   </property>
+  </action>
+  <action name="actionInitInfrared">
+   <property name="text">
+    <string>初始化 IR Camera</string>
    </property>
   </action>
  </widget>

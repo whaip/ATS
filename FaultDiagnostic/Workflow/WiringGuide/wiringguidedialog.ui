@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>WiringGuideDialog</class>
+ <widget class="QDialog" name="WiringGuideDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>680</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>接线引导与测温框选</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QSplitter" name="splitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QWidget" name="leftPanel">
+      <layout class="QVBoxLayout" name="leftPanelLayout">
+       <item>
+        <widget class="QLabel" name="hintLabel">
+         <property name="text">
+          <string>请按步骤完成接线与测温区域框选，确认后开始测试。</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="progressLabel">
+         <property name="text">
+          <string>进度: 0 / 0</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QListWidget" name="stepList"/>
+       </item>
+    <item>
+     <widget class="QGroupBox" name="roiGroupBox">
+      <property name="title">
+       <string>测温框选（简化）</string>
+      </property>
+      <layout class="QVBoxLayout" name="roiLayout">
+       <item>
+        <widget class="QLabel" name="roiStatusLabel">
+         <property name="text">
+          <string>状态：未框选</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="selectRoiButton">
+         <property name="text">
+          <string>框选测温区域</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+       <item>
+        <widget class="QPushButton" name="nextButton">
+         <property name="text">
+          <string>下一步</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="labelManagerContainer"/>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

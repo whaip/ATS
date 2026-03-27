@@ -125,6 +125,7 @@ TestSequenceManager::Item TestSequenceManager::itemFromJson(const QJsonObject &o
 {
     Item item;
     item.componentRef = obj.value(QStringLiteral("componentRef")).toString();
+    item.componentType = obj.value(QStringLiteral("componentType")).toString();
     item.pluginId = obj.value(QStringLiteral("pluginId")).toString();
 
     const QJsonObject params = obj.value(QStringLiteral("parameters")).toObject();
@@ -139,6 +140,7 @@ QJsonObject TestSequenceManager::itemToJson(const Item &item)
 {
     QJsonObject obj;
     obj.insert(QStringLiteral("componentRef"), item.componentRef);
+    obj.insert(QStringLiteral("componentType"), item.componentType);
     obj.insert(QStringLiteral("pluginId"), item.pluginId);
 
     QJsonObject params;

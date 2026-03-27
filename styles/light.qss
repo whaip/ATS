@@ -205,3 +205,63 @@ QLabel#labelOverviewStatus {
     color: #0078D4;
     font-weight: 600;
 }
+
+QFrame#bottomFrame {
+    background: rgba(0, 0, 0, 0.015);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 10px;
+}
+
+QFrame#bottomFrame QLabel#labelPageInfo,
+QFrame#bottomFrame QLabel#labelJump {
+    color: rgba(28, 28, 28, 0.62);
+}
+
+QFrame#bottomFrame QToolButton#btnPagePrev,
+QFrame#bottomFrame QToolButton#btnPageNext {
+    min-width: 34px;
+    max-width: 34px;
+    min-height: 30px;
+    max-height: 30px;
+    padding: 0;
+    font-weight: 600;
+}
+
+QFrame#bottomFrame QLineEdit#editJumpPage {
+    min-height: 30px;
+    max-height: 30px;
+    padding: 0 6px;
+}
+
+QFrame#bottomFrame QPushButton#btnGo {
+    min-width: 50px;
+    min-height: 30px;
+    max-height: 30px;
+    font-weight: 600;
+}
+
+QFrame#bottomFrame QPushButton#pageNavButton {
+    min-height: 30px;
+    border-radius: 14px;
+    padding: 0 10px;
+    background: rgba(0, 0, 0, 0.02);
+}
+
+QFrame#bottomFrame QPushButton#pageNavButton:checked {
+    background: rgba(0, 120, 212, 0.16);
+    border-color: #0078D4;
+    color: #005fb8;
+}
+
+QFrame#bottomFrame QToolButton#navSetting,
+QFrame#bottomFrame QToolButton#navIRCamera,
+QFrame#bottomFrame QToolButton#FaultDiagnostic,
+QFrame#bottomFrame QToolButton#btnDataGenerateCard,
+QFrame#bottomFrame QToolButton#btnDataCaptureCard {
+    min-width: 84px;
+    min-height: 34px;
+    max-height: 34px;
+    font-weight: 600;
+    padding: 0 10px;
+    qproperty-toolButtonStyle: ToolButtonTextOnly;
+}

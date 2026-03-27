@@ -8,6 +8,7 @@
 
 class QButtonGroup;
 class QHBoxLayout;
+class QScrollArea;
 class QStackedWidget;
 
 class PageButtonManager : public QObject
@@ -26,6 +27,9 @@ private:
     void clearButtons();
     void updateChecked(int index);
     QString pageDisplayName(int index) const;
+    QScrollArea *findScrollArea() const;
+    bool handleWheelScroll(QEvent *event);
+    void ensureCurrentButtonVisible(int index);
 
     QPointer<QStackedWidget> m_stack;
     QPointer<QHBoxLayout> m_layout;
