@@ -32,6 +32,13 @@ public:
         }
 
         m_cfg = config.cfg532x;
+        Logger::log(QStringLiteral("532x configure begin: kind=%1 slot=%2 channels=%3 sampleRate=%4 samplesPerRead=%5")
+                        .arg(static_cast<int>(m_kind))
+                        .arg(m_cfg.slotNumber)
+                        .arg(m_cfg.channelCount)
+                        .arg(m_cfg.sampleRate)
+                        .arg(m_cfg.samplesPerRead),
+                    Logger::Level::Info);
         if (JY5320_Open(m_cfg.slotNumber, &m_handle) != 0) {
             if (error) *error = QStringLiteral("JY5320_Open failed");
             m_handle = nullptr;
@@ -85,15 +92,23 @@ public:
 
         m_lastTransferredSamples = 0;
         m_hasTransferredBaseline = false;
+        m_firstReadLogged = false;
 
         const int dataLen = m_cfg.samplesPerRead * m_cfg.channelCount;
         m_buffer.resize(static_cast<size_t>(dataLen));
+        Logger::log(QStringLiteral("532x configure complete: kind=%1 slot=%2")
+                        .arg(static_cast<int>(m_kind))
+                        .arg(m_cfg.slotNumber),
+                    Logger::Level::Info);
         return true;
     }
 
     bool start(QString *error) override
     {
         Q_UNUSED(error)
+        Logger::log(QStringLiteral("532x start: kind=%1")
+                        .arg(static_cast<int>(m_kind)),
+                    Logger::Level::Info);
         return true;
     }
 
@@ -107,6 +122,10 @@ public:
             if (error) *error = QStringLiteral("JY5320_AI_SendSoftTrigger failed");
             return false;
         }
+        m_firstReadLogged = false;
+        Logger::log(QStringLiteral("532x trigger sent: kind=%1")
+                        .arg(static_cast<int>(m_kind)),
+                    Logger::Level::Info);
         return true;
     }
 
@@ -120,6 +139,9 @@ public:
             if (error) *error = QStringLiteral("JY5320_AI_Stop failed");
             return false;
         }
+        Logger::log(QStringLiteral("532x stop complete: kind=%1")
+                        .arg(static_cast<int>(m_kind)),
+                    Logger::Level::Info);
         return true;
     }
 
@@ -136,6 +158,9 @@ public:
             return false;
         }
         m_handle = nullptr;
+        Logger::log(QStringLiteral("532x close complete: kind=%1")
+                        .arg(static_cast<int>(m_kind)),
+                    Logger::Level::Info);
         return true;
     }
 
@@ -215,6 +240,14 @@ public:
         }
         out->timestampMs = nowMs();
         m_totalSamples += actualRead;
+        if (!m_firstReadLogged) {
+            m_firstReadLogged = true;
+            Logger::log(QStringLiteral("532x first read complete: kind=%1 samples=%2 channels=%3")
+                            .arg(static_cast<int>(m_kind))
+                            .arg(actualRead)
+                            .arg(m_cfg.channelCount),
+                        Logger::Level::Info);
+        }
         return true;
     }
 
@@ -229,6 +262,7 @@ private:
     std::vector<double> m_buffer;
     unsigned long long m_lastTransferredSamples = 0;
     bool m_hasTransferredBaseline = false;
+    bool m_firstReadLogged = false;
     quint64 m_totalSamples = 0;
 };
 
@@ -244,6 +278,12 @@ public:
         }
 
         m_cfg = config.cfg5711;
+        Logger::log(QStringLiteral("5711 configure begin: slot=%1 channels=%2 waveforms=%3 sampleRate=%4")
+                        .arg(m_cfg.slotNumber)
+                        .arg(m_cfg.channelCount)
+                        .arg(m_cfg.waveforms.size())
+                        .arg(m_cfg.sampleRate),
+                    Logger::Level::Info);
         if (m_cfg.channelCount <= 0) {
             m_cfg.channelCount = 1;
         }
@@ -303,6 +343,11 @@ public:
             return false;
         }
 
+        Logger::log(QStringLiteral("5711 configure complete: slot=%1 writePoints=%2")
+                        .arg(m_cfg.slotNumber)
+                        .arg(actualWrite),
+                    Logger::Level::Info);
+
         return true;
     }
 
@@ -316,6 +361,7 @@ public:
             if (error) *error = QStringLiteral("JY5710_AO_Start failed");
             return false;
         }
+        Logger::log(QStringLiteral("5711 output start complete"), Logger::Level::Info);
         return true;
     }
 
@@ -329,6 +375,7 @@ public:
             if (error) *error = QStringLiteral("JY5710_AO_SendSoftTrigger failed");
             return false;
         }
+        Logger::log(QStringLiteral("5711 output trigger sent"), Logger::Level::Info);
         return true;
     }
 
@@ -342,6 +389,7 @@ public:
             if (error) *error = QStringLiteral("JY5710_AO_Stop failed");
             return false;
         }
+        Logger::log(QStringLiteral("5711 output stop complete"), Logger::Level::Info);
         return true;
     }
 
@@ -358,6 +406,7 @@ public:
             return false;
         }
         m_handle = nullptr;
+        Logger::log(QStringLiteral("5711 close complete"), Logger::Level::Info);
         return true;
     }
 
@@ -373,7 +422,8 @@ private:
     {
         std::vector<std::unique_ptr<Waveform>> waveforms;
         waveforms.resize(static_cast<size_t>(m_cfg.channelCount));
-        for (const auto &cfg : m_cfg.waveforms) {
+        for (const auto &rawCfg : m_cfg.waveforms) {
+            const JY5711WaveformConfig cfg = rawCfg.normalized();
             if (cfg.channel < 0 || cfg.channel >= m_cfg.channelCount) {
                 continue;
             }
@@ -382,7 +432,16 @@ private:
                 amplitude = 0.201 * amplitude - 0.01107;  //调理板卡转换
             }
             waveforms[static_cast<size_t>(cfg.channel)] =
-                PXIe5711_create_waveform(cfg.type, amplitude, cfg.frequency, cfg.dutyCycle);
+                PXIe5711_create_waveform(cfg.type,
+                                         amplitude,
+                                         cfg.frequency,
+                                         cfg.dutyCycle,
+                                         cfg.pulseVLow,
+                                         cfg.pulseVHigh,
+                                         cfg.pulseTDelay,
+                                         cfg.pulseTOn,
+                                         cfg.pulseTPeriod,
+                                         cfg.pulseUseTiming);
         }
 
         for (int i = 0; i < samples; ++i) {
@@ -532,14 +591,20 @@ public:
         }
 
         m_readyAtMs = nowMs() + m_firstReadDelayMs;
+        m_firstReadLogged = false;
 
         m_buffer.resize(static_cast<size_t>(m_cfg.sampleCount));
+        Logger::log(QStringLiteral("8902 configure complete: slot=%1 sampleCount=%2")
+                        .arg(m_cfg.slotNumber)
+                        .arg(m_cfg.sampleCount),
+                    Logger::Level::Info);
         return true;
     }
 
     bool start(QString *error) override
     {
         Q_UNUSED(error)
+        Logger::log(QStringLiteral("8902 start"), Logger::Level::Info);
         return true;
     }
 
@@ -554,6 +619,8 @@ public:
             return false;
         }
         m_readyAtMs = nowMs() + m_firstReadDelayMs;
+        m_firstReadLogged = false;
+        Logger::log(QStringLiteral("8902 trigger sent"), Logger::Level::Info);
         return true;
     }
 
@@ -567,6 +634,7 @@ public:
             if (error) *error = QStringLiteral("JY8902_DMM_Stop failed");
             return false;
         }
+        Logger::log(QStringLiteral("8902 stop complete"), Logger::Level::Info);
         return true;
     }
 
@@ -583,6 +651,7 @@ public:
             return false;
         }
         m_handle = nullptr;
+        Logger::log(QStringLiteral("8902 close complete"), Logger::Level::Info);
         return true;
     }
 
@@ -622,6 +691,13 @@ public:
         }
         out->timestampMs = nowMs();
         m_totalSamples += static_cast<quint64>(actualRead);
+        if (!m_firstReadLogged && actualRead > 0) {
+            m_firstReadLogged = true;
+            Logger::log(QStringLiteral("8902 first read complete: samples=%1 sampleRate=%2")
+                            .arg(actualRead)
+                            .arg(out->sampleRateHz),
+                        Logger::Level::Info);
+        }
         return true;
     }
 
@@ -634,6 +710,7 @@ private:
     const qint64 m_firstReadDelayMs = 500;
     unsigned long long m_lastTransferredSamples = 0;
     bool m_hasTransferredBaseline = false;
+    bool m_firstReadLogged = false;
     quint64 m_totalSamples = 0;
 };
 }

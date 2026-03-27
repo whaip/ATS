@@ -46,24 +46,26 @@ void LabelRectItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
 
         handle.moveCenter(r.bottomRight());
         painter->drawRect(handle);
+    }
 
+    const bool showOverlay = isSelected() || isHovered;
+    if (showOverlay && (!label_info.label.isEmpty() || label_info.id > 0)) {
+        QRectF labelRect = getLabelRect();
+        QRectF idRect = getIdRect();
+        idRect.moveLeft(rect().left() - idRect.width());
+
+        painter->setOpacity(1);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(255, 255, 255));
+        painter->drawRect(labelRect);
+        painter->drawRect(idRect);
+
+        painter->setPen(rectPen.color());
+        painter->setBrush(Qt::NoBrush);
         if (!label_info.label.isEmpty()) {
-            QRectF labelRect = getLabelRect();
-            QRectF idRect = getIdRect(); 
-            idRect.moveLeft(rect().left() - idRect.width());
-
-            painter->setOpacity(1);
-
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(QColor(255, 255, 255));
-            painter->drawRect(labelRect);
-
-            painter->drawRect(idRect);
-
-            painter->setPen(rectPen.color());
-            painter->setBrush(Qt::NoBrush);
             painter->drawText(labelRect, Qt::AlignCenter, label_info.label);
-
+        }
+        if (label_info.id > 0) {
             painter->drawText(idRect, Qt::AlignCenter, QString::number(label_info.id));
         }
     }
@@ -100,6 +102,23 @@ QRectF LabelRectItem::getLabelRect() const
 bool LabelRectItem::isLabelHit(const QPointF &pos) const
 {
     return getLabelRect().contains(pos);
+}
+
+QRectF LabelRectItem::boundingRect() const
+{
+    QRectF bounds = rect().normalized();
+    const qreal penWidth = qMax<qreal>(1.0, rectPen.widthF());
+    const qreal margin = HandleSize + penWidth + 2.0;
+    bounds.adjust(-margin, -margin, margin, margin);
+
+    if (!label_info.label.isEmpty() || label_info.id > 0) {
+        QRectF labelRect = getLabelRect();
+        QRectF idRect = getIdRect();
+        idRect.moveLeft(rect().left() - idRect.width());
+        bounds = bounds.united(labelRect).united(idRect);
+    }
+
+    return bounds;
 }
 
 void LabelRectItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
@@ -188,7 +207,6 @@ void LabelRectItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
             break;
         case None:
             QGraphicsRectItem::mouseMoveEvent(event);
-            scene()->update();
             return;
         }
 
@@ -197,7 +215,6 @@ void LabelRectItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
             dragStart = event->pos();
             updateZValue();
         }
-        scene()->update();
     }
 }
 
@@ -386,7 +403,6 @@ void LabelRectItem::keyPressEvent(QKeyEvent *event)
     if (r.width() >= HandleSize && r.height() >= HandleSize) {
         setRect(r);
     }
-    scene()->update();
     event->accept();
 }
 

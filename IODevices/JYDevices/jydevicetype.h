@@ -4,6 +4,7 @@
 #include <QString>
 #include <QVector>
 #include <QMap>
+#include <QtGlobal>
 
 #include "5711waveformconfig.h"
 
@@ -39,6 +40,77 @@ struct JY5711WaveformConfig {
 	double amplitude = 0.0;
 	double frequency = 0.0;
 	double dutyCycle = 0.5;
+
+	double pulseVLow = 0.0;
+	double pulseVHigh = 0.0;
+	double pulseTDelay = 0.0;
+	double pulseTOn = 0.0;
+	double pulseTPeriod = 0.0;
+	bool pulseUseTiming = false;
+
+	void setLegacyPulse(double high, double freqHz, double duty)
+	{
+		type = PXIe5711_testtype::PulseWave;
+		amplitude = high;
+		frequency = qMax(0.0, freqHz);
+		dutyCycle = qBound(0.0, duty, 1.0);
+		pulseUseTiming = false;
+		const JY5711WaveformConfig synced = normalized();
+		pulseVLow = synced.pulseVLow;
+		pulseVHigh = synced.pulseVHigh;
+		pulseTDelay = synced.pulseTDelay;
+		pulseTOn = synced.pulseTOn;
+		pulseTPeriod = synced.pulseTPeriod;
+	}
+
+	void setPulseTiming(double vLow, double vHigh, double tDelaySec, double tOnSec, double tPeriodSec)
+	{
+		type = PXIe5711_testtype::PulseWave;
+		pulseVLow = vLow;
+		pulseVHigh = vHigh;
+		pulseTDelay = qMax(0.0, tDelaySec);
+		pulseTOn = qMax(0.0, tOnSec);
+		pulseTPeriod = qMax(0.0, tPeriodSec);
+		pulseUseTiming = true;
+		const JY5711WaveformConfig synced = normalized();
+		amplitude = synced.amplitude;
+		frequency = synced.frequency;
+		dutyCycle = synced.dutyCycle;
+		pulseTOn = synced.pulseTOn;
+	}
+
+	JY5711WaveformConfig normalized() const
+	{
+		JY5711WaveformConfig cfg = *this;
+		if (cfg.type != PXIe5711_testtype::PulseWave) {
+			cfg.pulseUseTiming = false;
+			return cfg;
+		}
+
+		if (!cfg.pulseUseTiming) {
+			const double safeFreq = qMax(0.0, cfg.frequency);
+			const double safeDuty = qBound(0.0, cfg.dutyCycle, 1.0);
+			const double period = (safeFreq > 0.0) ? (1.0 / safeFreq) : 0.0;
+			cfg.pulseVLow = 0.0;
+			cfg.pulseVHigh = cfg.amplitude;
+			cfg.pulseTDelay = 0.0;
+			cfg.pulseTPeriod = period;
+			cfg.pulseTOn = (period > 0.0) ? (safeDuty * period) : 0.0;
+			return cfg;
+		}
+
+		cfg.pulseTDelay = qMax(0.0, cfg.pulseTDelay);
+		cfg.pulseTOn = qMax(0.0, cfg.pulseTOn);
+		cfg.pulseTPeriod = qMax(0.0, cfg.pulseTPeriod);
+		if (cfg.pulseTPeriod > 0.0) {
+			const double available = qMax(0.0, cfg.pulseTPeriod - cfg.pulseTDelay);
+			cfg.pulseTOn = qBound(0.0, cfg.pulseTOn, available);
+			cfg.frequency = 1.0 / cfg.pulseTPeriod;
+			cfg.amplitude = cfg.pulseVHigh;
+			cfg.dutyCycle = (cfg.pulseTPeriod > 0.0) ? (cfg.pulseTOn / cfg.pulseTPeriod) : 0.0;
+		}
+		return cfg;
+	}
 };
 
 struct JY5711Config {

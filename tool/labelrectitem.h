@@ -31,7 +31,7 @@ public:
         Right
     };
 
-    void setLabel(const QString &text) { label_info.label = text; update(); }
+    void setLabel(const QString &text) { prepareGeometryChange(); label_info.label = text; update(); }
     void setPositionNumber(const QString &text) { label_info.position_number = text; update(); }
     void setNotes(const QByteArray &text) { label_info.notes = text; update(); }
     void setComponentType(int cls) { label_info.cls = cls; update(); }
@@ -50,10 +50,11 @@ public:
     std::tuple<int, QRectF, QString, QByteArray> getItemInfo(){
         return std::make_tuple(label_info.id, sceneRect(), label_info.position_number, label_info.notes);
     };    
-    void setId(int id) { label_info.id = id; update(); }
+    void setId(int id) { prepareGeometryChange(); label_info.id = id; update(); }
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
+    QRectF boundingRect() const override;
 
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;

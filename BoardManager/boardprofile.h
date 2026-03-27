@@ -6,7 +6,6 @@
 #include <QRectF>
 #include <QString>
 #include <QVector>
-#include "../FaultDiagnostic/Core/testplan.h"
 
 struct AnchorPoint {
     QString id;
@@ -29,7 +28,6 @@ struct BoardProfile {
     QString version;
     QDateTime createdAt;
     QVector<ComponentInstance> components;
-    QVector<ComponentPlanBinding> planBindings;
 };
 
 #endif // DOMAIN_BOARDPROFILE_H

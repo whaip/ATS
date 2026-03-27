@@ -153,6 +153,32 @@ void IRCamera::setStationEnabled(bool enabled)
     }
 }
 
+bool IRCamera::firstBoxRect(QRectF *rect) const
+{
+    if (!rect || m_boxes.isEmpty()) {
+        return false;
+    }
+    *rect = m_boxes.first().rect;
+    return rect->isValid() && rect->width() > 1.0 && rect->height() > 1.0;
+}
+
+QVector<QRectF> IRCamera::boxRects() const
+{
+    QVector<QRectF> rects;
+    rects.reserve(m_boxes.size());
+    for (const auto &entry : m_boxes) {
+        if (entry.rect.isValid() && entry.rect.width() > 1.0 && entry.rect.height() > 1.0) {
+            rects.push_back(entry.rect);
+        }
+    }
+    return rects;
+}
+
+int IRCamera::boxCount() const
+{
+    return m_boxes.size();
+}
+
 bool IRCamera::eventFilter(QObject *watched, QEvent *event)
 {
     if (!m_view || watched != m_view->viewport() || !event) {

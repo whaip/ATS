@@ -23,11 +23,12 @@ JYDeviceWorker *JYThreadManager::create532xWorker(JYDeviceKind kind)
 	m_initialized[kind] = false;
 	m_orchestrator->addWorker(worker);
 	connect(worker, &JYDeviceWorker::statusChanged, this,
-			[this](JYDeviceKind kind, JYDeviceState state, const QString &) {
+			[this](JYDeviceKind kind, JYDeviceState state, const QString &message) {
 				const bool ok = (state == JYDeviceState::Configured
 							 || state == JYDeviceState::Armed
 							 || state == JYDeviceState::Running);
 				m_initialized[kind] = ok;
+				emit deviceStatusChanged(kind, state, message);
 			});
 	connect(worker, &JYDeviceWorker::dataReady, m_pipeline, &JYDataPipeline::ingest, Qt::QueuedConnection);
 	return worker;
@@ -42,11 +43,12 @@ JYDeviceWorker *JYThreadManager::create5711Worker()
 	m_initialized[JYDeviceKind::PXIe5711] = false;
 	m_orchestrator->addWorker(worker);
 	connect(worker, &JYDeviceWorker::statusChanged, this,
-			[this](JYDeviceKind kind, JYDeviceState state, const QString &) {
+			[this](JYDeviceKind kind, JYDeviceState state, const QString &message) {
 				const bool ok = (state == JYDeviceState::Configured
 							 || state == JYDeviceState::Armed
 							 || state == JYDeviceState::Running);
 				m_initialized[kind] = ok;
+				emit deviceStatusChanged(kind, state, message);
 			});
 	connect(worker, &JYDeviceWorker::dataReady, m_pipeline, &JYDataPipeline::ingest, Qt::QueuedConnection);
 	return worker;
@@ -61,11 +63,12 @@ JYDeviceWorker *JYThreadManager::create8902Worker()
 	m_initialized[JYDeviceKind::PXIe8902] = false;
 	m_orchestrator->addWorker(worker);
 	connect(worker, &JYDeviceWorker::statusChanged, this,
-			[this](JYDeviceKind kind, JYDeviceState state, const QString &) {
+			[this](JYDeviceKind kind, JYDeviceState state, const QString &message) {
 				const bool ok = (state == JYDeviceState::Configured
 							 || state == JYDeviceState::Armed
 							 || state == JYDeviceState::Running);
 				m_initialized[kind] = ok;
+				emit deviceStatusChanged(kind, state, message);
 			});
 	connect(worker, &JYDeviceWorker::dataReady, m_pipeline, &JYDataPipeline::ingest, Qt::QueuedConnection);
 	return worker;

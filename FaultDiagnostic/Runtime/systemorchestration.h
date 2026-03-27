@@ -149,6 +149,7 @@ private:
     void setState(RuntimeState state);
     bool ensureAuthorized(RuntimeAction action, QString *error) const;
     bool ensureRuntimeReady(QString *error) const;
+    void handleDeviceFault(JYDeviceKind kind, const QString &message);
 
     JYThreadManager *m_manager = nullptr;
     CameraStation *m_camera = nullptr;
@@ -166,6 +167,7 @@ private:
     JYDeviceConfig m_lastConfig8902;
 
     QMetaObject::Connection m_batchConn;
+    QMetaObject::Connection m_deviceStatusConn;
 };
 
 class SystemRuntimeOrchestration : public QObject

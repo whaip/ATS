@@ -29,6 +29,7 @@ public:
 
 private:
     QMap<QString, QVariant> m_settings;
+    QVector<TPSPortBinding> m_allocatedBindings;
 };
 
 #endif // MULTITPSPLUGIN_H

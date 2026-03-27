@@ -24,7 +24,8 @@ public:
     bool synchronizeStart(const JYDeviceConfig &config532x,
                           const JYDeviceConfig &config5711,
                           const JYDeviceConfig &config8902,
-                          int timeoutMs);
+                          int timeoutMs,
+                          qint64 *barrierReleaseMs = nullptr);
     bool synchronizeStop(int timeoutMs);
 
 signals:

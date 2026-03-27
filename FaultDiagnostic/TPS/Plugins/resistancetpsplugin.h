@@ -28,7 +28,13 @@ public:
     bool execute(const TPSRequest &request, TPSResult *result, QString *error) override;
 
 private:
+    bool collectInputSamples(const TPSRequest &request, QVector<double> *samples) const;
+    double resolveExcitationVoltage(const TPSRequest &request) const;
+
     QMap<QString, QVariant> m_settings;
+    QVector<TPSPortBinding> m_allocatedBindings;
+    JYDeviceConfig m_config5711;
+    bool m_configReady = false;
 };
 
 #endif // RESISTANCETPSPLUGIN_H

@@ -45,6 +45,9 @@ void JYDeviceWorker::stop()
 void JYDeviceWorker::postConfigure(const JYDeviceConfig &config)
 {
     enqueue([this, config]() {
+        Logger::log(QStringLiteral("Device action requested: kind=%1 action=configure")
+                        .arg(static_cast<int>(kind())),
+                    Logger::Level::Info);
         QString error;
         if (!isStateAllowed({JYDeviceState::Closed, JYDeviceState::Configured, JYDeviceState::Faulted}, &error, QStringLiteral("configure"))) {
             rejectAction(error);
@@ -61,13 +64,16 @@ void JYDeviceWorker::postConfigure(const JYDeviceConfig &config)
 void JYDeviceWorker::postStart()
 {
     enqueue([this]() {
+        Logger::log(QStringLiteral("Device action requested: kind=%1 action=start")
+                        .arg(static_cast<int>(kind())),
+                    Logger::Level::Info);
         QString error;
         if (!isStateAllowed({JYDeviceState::Configured}, &error, QStringLiteral("start"))) {
             rejectAction(error);
             return;
         }
         if (m_adapter->start(&error)) {
-            setState(JYDeviceState::Running, QStringLiteral("running"));
+            setState(JYDeviceState::Armed, QStringLiteral("armed"));
         } else {
             setState(JYDeviceState::Faulted, error);
         }
@@ -77,16 +83,17 @@ void JYDeviceWorker::postStart()
 void JYDeviceWorker::postTrigger()
 {
     enqueue([this]() {
+        Logger::log(QStringLiteral("Device action requested: kind=%1 action=trigger")
+                        .arg(static_cast<int>(kind())),
+                    Logger::Level::Info);
         QString error;
-        if (!isStateAllowed({JYDeviceState::Configured, JYDeviceState::Armed, JYDeviceState::Running}, &error, QStringLiteral("trigger"))) {
+        if (!isStateAllowed({JYDeviceState::Armed, JYDeviceState::Configured, JYDeviceState::Running}, &error, QStringLiteral("trigger"))) {
             rejectAction(error);
             return;
         }
         if (m_adapter->trigger(&error)) {
             m_dataLoop = (kind() != JYDeviceKind::PXIe5711);
-            if (m_state == JYDeviceState::Configured) {
-                setState(JYDeviceState::Armed, QStringLiteral("armed"));
-            }
+            setState(JYDeviceState::Running, QStringLiteral("running"));
         } else {
             setState(JYDeviceState::Faulted, error);
         }
@@ -96,6 +103,9 @@ void JYDeviceWorker::postTrigger()
 void JYDeviceWorker::postStop()
 {
     enqueue([this]() {
+        Logger::log(QStringLiteral("Device action requested: kind=%1 action=stop")
+                        .arg(static_cast<int>(kind())),
+                    Logger::Level::Info);
         QString error;
         m_dataLoop = false;
         if (!isStateAllowed({JYDeviceState::Running, JYDeviceState::Armed, JYDeviceState::Configured}, &error, QStringLiteral("stop"))) {
@@ -113,6 +123,9 @@ void JYDeviceWorker::postStop()
 void JYDeviceWorker::postClose()
 {
     enqueue([this]() {
+        Logger::log(QStringLiteral("Device action requested: kind=%1 action=close")
+                        .arg(static_cast<int>(kind())),
+                    Logger::Level::Info);
         QString error;
         m_dataLoop = false;
         if (!isStateAllowed({JYDeviceState::Closed, JYDeviceState::Configured, JYDeviceState::Running, JYDeviceState::Armed, JYDeviceState::Faulted}, &error, QStringLiteral("close"))) {

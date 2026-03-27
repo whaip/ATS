@@ -9,8 +9,8 @@
 #include <QScrollBar>
 #include <QPushButton>
 #include <QComboBox>
-#include <QOpenGLWidget>
 #include <QTableWidget>
+#include <QList>
 #include "labelrectitem.h"
 #include <QPropertyAnimation>
 
@@ -58,11 +58,13 @@ public slots:
 signals:
     void window_close();
     void closeRequested();  // 添加新的信号
+    void selectionChanged();
     
     // 标签操作同步信号
     void labelAdded(const Label& label);      // 标签添加信号
     void labelUpdated(const Label& label);    // 标签更新信号  
     void labelDeleted(int labelId);           // 标签删除信号
+    void parameterConfigRequested(const Label& label, const QList<int> &anchorIds);
 protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -74,6 +76,7 @@ protected:
 
 private:
     void clearAllSelection();
+    void requestLabelTableRefresh();
     QPushButton *createRectButton;
     QPushButton *editButton;
     QPushButton *finishButton;
@@ -113,6 +116,8 @@ private:
     void setupUI();
     void updateRectItemStyle(LabelRectItem* item);
     void reloadItems();
+    QList<int> collectAllLabelIds() const;
+    bool m_tableRefreshPending = false;
 };
 
 class LabelEditingWindow : public QWidget
@@ -134,6 +139,8 @@ public:
         connect(labelEditing.get(), &LabelEditing::labelAdded, this, &LabelEditingWindow::labelAdded);
         connect(labelEditing.get(), &LabelEditing::labelUpdated, this, &LabelEditingWindow::labelUpdated);
         connect(labelEditing.get(), &LabelEditing::labelDeleted, this, &LabelEditingWindow::labelDeleted);
+        connect(labelEditing.get(), &LabelEditing::parameterConfigRequested, this, &LabelEditingWindow::parameterConfigRequested);
+        connect(labelEditing.get(), &LabelEditing::selectionChanged, this, &LabelEditingWindow::selectionChanged);
 
         labelTable->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
         labelEditing->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
@@ -175,6 +182,8 @@ signals:
     void labelAdded(const Label& label);
     void labelUpdated(const Label& label);  
     void labelDeleted(int labelId);
+    void parameterConfigRequested(const Label& label, const QList<int> &anchorIds);
+    void selectionChanged();
 protected:
     void closeEvent(QCloseEvent *event) override
     {

@@ -1,6 +1,7 @@
 #include "jydeviceorchestrator.h"
 #include "jydeviceconfigutils.h"
 
+#include <QDateTime>
 #include <QEventLoop>
 #include <QTimer>
 
@@ -59,12 +60,14 @@ void JYDeviceOrchestrator::configureAll(const JYDeviceConfig &config532x, const 
             {
                 const JYDeviceKind kind = worker->kind();
                 JYDeviceConfig cfg = build532xInitConfig(kind);
-                cfg.cfg532x.channelCount = config532x.cfg532x.channelCount;
+                const int maxChannels = (kind == JYDeviceKind::PXIe5322) ? 16 : 32;
+                cfg.cfg532x.channelCount = qMin(config532x.cfg532x.channelCount, maxChannels);
                 cfg.cfg532x.samplesPerRead = config532x.cfg532x.samplesPerRead;
                 cfg.cfg532x.timeoutMs = config532x.cfg532x.timeoutMs;
                 cfg.cfg532x.lowRange = config532x.cfg532x.lowRange;
                 cfg.cfg532x.highRange = config532x.cfg532x.highRange;
                 cfg.cfg532x.bandwidth = config532x.cfg532x.bandwidth;
+                cfg.cfg532x.sampleRate = (kind == JYDeviceKind::PXIe5322) ? 1000000.0 : 200000.0;
                 worker->postConfigure(cfg);
                 break;
             }
@@ -117,7 +120,8 @@ void JYDeviceOrchestrator::closeAll()
 bool JYDeviceOrchestrator::synchronizeStart(const JYDeviceConfig &config532x,
                                             const JYDeviceConfig &config5711,
                                             const JYDeviceConfig &config8902,
-                                            int timeoutMs)
+                                            int timeoutMs,
+                                            qint64 *barrierReleaseMs)
 {
     m_lastConfig532x = config532x;
     m_lastConfig5711 = config5711;
@@ -142,10 +146,15 @@ bool JYDeviceOrchestrator::synchronizeStart(const JYDeviceConfig &config532x,
         worker->postStart();
     }
 
-    if (!waitForAll(JYDeviceState::Running, timeoutMs, &reason, config532x, config5711, config8902, true)) {
+    if (!waitForAll(JYDeviceState::Armed, timeoutMs, &reason, config532x, config5711, config8902, true)) {
         closeAll();
         emit syncFailed(reason);
         return false;
+    }
+
+    const qint64 releaseTs = QDateTime::currentMSecsSinceEpoch();
+    if (barrierReleaseMs) {
+        *barrierReleaseMs = releaseTs;
     }
 
     for (auto *worker : m_workers) {
@@ -157,6 +166,13 @@ bool JYDeviceOrchestrator::synchronizeStart(const JYDeviceConfig &config532x,
         }
         worker->postTrigger();
     }
+
+    if (!waitForAll(JYDeviceState::Running, timeoutMs, &reason, config532x, config5711, config8902, true)) {
+        closeAll();
+        emit syncFailed(reason);
+        return false;
+    }
+
     emit syncSucceeded();
     return true;
 }

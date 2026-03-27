@@ -1,41 +1,41 @@
-#include "boardmanager.h"
+﻿#include "boardmanager.h"
 #include "ui_boardmanager.h"
 
+#include "../boardrepository.h"
+#include "../componenttyperegistry.h"
 #include "../ComponentsDetect/yolomodel.h"
 #include "../HDCamera/camerastation.h"
 #include "../HDCamera/camerastationclient.h"
+#include "../tpsparamservice.h"
 #include "../tool/lebalitemmanager.h"
 #include "../tool/pcbextract.h"
 #include "../tool/siftmatcher.h"
+#include "../logger.h"
+
+#include <QAbstractButton>
+#include <QAbstractItemView>
+#include <QCheckBox>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QCheckBox>
-#include <QFormLayout>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
-#include <QHBoxLayout>
+#include <QFileInfo>
+#include <QFormLayout>
 #include <QHeaderView>
+#include <QHBoxLayout>
 #include <QImageReader>
 #include <QLabel>
+#include <QListWidget>
 #include <QMessageBox>
-#include <QSet>
-#include <QByteArray>
-#include <QAbstractItemView>
+#include <QRegularExpression>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
-#include <QResizeEvent>
-#include <QPlainTextEdit>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonParseError>
-#include <QJsonValue>
 
 #include <algorithm>
 #include <exception>
-#include <functional>
 #include <opencv2/opencv.hpp>
 
 namespace {
@@ -58,64 +58,39 @@ cv::Mat qimageToBgrMat(const QImage &img)
     return bgr.clone();
 }
 
-QJsonObject rectToJson(const QRectF &rect)
+QString componentTypeNameByClassId(int cls)
 {
-    QJsonObject obj;
-    obj.insert(QStringLiteral("x"), rect.x());
-    obj.insert(QStringLiteral("y"), rect.y());
-    obj.insert(QStringLiteral("w"), rect.width());
-    obj.insert(QStringLiteral("h"), rect.height());
-    return obj;
+    const ComponentTypeRegistryData registry = ComponentTypeRegistry::load();
+    return ComponentTypeRegistry::typeNameFromClassId(cls, registry);
 }
 
-QRectF rectFromJson(const QJsonObject &obj)
+QImage loadImageByDbPath(const QString &imagePath, const QString &databasePath)
 {
-    return QRectF(obj.value(QStringLiteral("x")).toDouble(),
-                  obj.value(QStringLiteral("y")).toDouble(),
-                  obj.value(QStringLiteral("w")).toDouble(),
-                  obj.value(QStringLiteral("h")).toDouble());
+    if (imagePath.trimmed().isEmpty()) {
+        return {};
+    }
+
+    QFileInfo imageInfo(imagePath);
+    if (imageInfo.isRelative() && !databasePath.isEmpty()) {
+        imageInfo = QFileInfo(QFileInfo(databasePath).dir(), imagePath);
+    }
+
+    return QImage(imageInfo.absoluteFilePath());
 }
 
-QJsonObject pointToJson(const QPointF &point)
+QString resolveDescriptorDbPath(const QString &boardDbPath)
 {
-    QJsonObject obj;
-    obj.insert(QStringLiteral("x"), point.x());
-    obj.insert(QStringLiteral("y"), point.y());
-    return obj;
-}
-
-QPointF pointFromJson(const QJsonObject &obj)
-{
-    return QPointF(obj.value(QStringLiteral("x")).toDouble(),
-                   obj.value(QStringLiteral("y")).toDouble());
-}
-
-QJsonObject temperatureSpecToJson(const TemperatureSpec &spec)
-{
-    QJsonObject obj;
-    obj.insert(QStringLiteral("monitorPoint"), pointToJson(spec.MonitorPoint));
-    obj.insert(QStringLiteral("monitorPosition"), rectToJson(spec.MonitorPosition));
-    obj.insert(QStringLiteral("alarmThresholdC"), spec.alarmThresholdC);
-    obj.insert(QStringLiteral("needContinuousCapture"), spec.needContinuousCapture);
-    obj.insert(QStringLiteral("captureMode"), spec.captureMode);
-    return obj;
-}
-
-TemperatureSpec temperatureSpecFromJson(const QJsonObject &obj)
-{
-    TemperatureSpec spec;
-    spec.MonitorPoint = pointFromJson(obj.value(QStringLiteral("monitorPoint")).toObject());
-    spec.MonitorPosition = rectFromJson(obj.value(QStringLiteral("monitorPosition")).toObject());
-    spec.alarmThresholdC = obj.value(QStringLiteral("alarmThresholdC")).toDouble(spec.alarmThresholdC);
-    spec.needContinuousCapture = obj.value(QStringLiteral("needContinuousCapture")).toBool(spec.needContinuousCapture);
-    spec.captureMode = obj.value(QStringLiteral("captureMode")).toString();
-    return spec;
+    if (boardDbPath.trimmed().isEmpty()) {
+        return QStringLiteral("descriptors_database.yml");
+    }
+    return QFileInfo(boardDbPath).dir().filePath(QStringLiteral("descriptors_database.yml"));
 }
 }
 
 BoardManager::BoardManager(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::BoardManager)
+    , m_repository(new BoardsRepository(this))
 {
     ui->setupUi(this);
     setupUiElements();
@@ -134,6 +109,43 @@ void BoardManager::resizeEvent(QResizeEvent *event)
     QWidget::resizeEvent(event);
 }
 
+QString BoardManager::resolveDatabasePath() const
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    QStringList candidates;
+
+    candidates << QDir(appDir).filePath(QStringLiteral("board_db/boards.json"));
+
+    QDir probeDir(appDir);
+    for (int depth = 0; depth < 8; ++depth) {
+        candidates << probeDir.filePath(QStringLiteral("board_db/boards.json"));
+        if (!probeDir.cdUp()) {
+            break;
+        }
+    }
+
+    for (const QString &candidate : candidates) {
+        if (QFileInfo::exists(candidate)) {
+            return QDir::cleanPath(candidate);
+        }
+    }
+
+    return QDir::cleanPath(candidates.first());
+}
+
+QString BoardManager::resolveImagePath(const QString &imagePath) const
+{
+    if (imagePath.trimmed().isEmpty()) {
+        return {};
+    }
+
+    QFileInfo imageInfo(imagePath);
+    if (!imageInfo.isAbsolute()) {
+        imageInfo = QFileInfo(QFileInfo(m_databasePath).dir(), imagePath);
+    }
+    return imageInfo.absoluteFilePath();
+}
+
 void BoardManager::setupUiElements()
 {
     if (ui->tableBoards) {
@@ -142,6 +154,11 @@ void BoardManager::setupUiElements()
         ui->tableBoards->setSelectionBehavior(QAbstractItemView::SelectRows);
         ui->tableBoards->setSelectionMode(QAbstractItemView::SingleSelection);
         ui->tableBoards->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    }
+
+    if (ui->buttonEditPlanBindings) {
+        ui->buttonEditPlanBindings->show();
+        ui->buttonEditPlanBindings->setText(tr("开始测试"));
     }
 
     if (ui->labelEditorContainer) {
@@ -158,53 +175,93 @@ void BoardManager::setupUiElements()
                     if (ui->labelComponentCount) {
                         ui->labelComponentCount->setText(QString::number(labels.size()));
                     }
-                    if (ui->textOtherInfo) {
-                        ui->textOtherInfo->append(QStringLiteral("标签更新: %1 个元件")
-                                                      .arg(labels.size()));
+                });
+        connect(m_labelEditor, &LebalItemManager::selectedLabelsChanged, this,
+                [this](const QList<CompLabel> &labels) {
+                    if (!ui || !ui->textOtherInfo) {
+                        return;
+                    }
+                    const QString current = ui->textOtherInfo->toPlainText();
+                    const QString selectedLine = QStringLiteral("已选元件：%1").arg(labels.size());
+                    if (!current.contains(QStringLiteral("已选元件："))) {
+                        ui->textOtherInfo->setText(current + QStringLiteral("\n") + selectedLine);
+                    } else {
+                        QString updated = current;
+                        updated.replace(QRegularExpression(QStringLiteral("已选元件：\\d+")), selectedLine);
+                        ui->textOtherInfo->setText(updated);
                     }
                 });
+        connect(m_labelEditor, &LebalItemManager::labelsChanged, this, &BoardManager::onLabelsChanged);
     }
+}
+
+BoardManager::BoardEntry BoardManager::buildEntryFromRepositoryBoard(int index) const
+{
+    BoardEntry entry;
+    const BoardRecord *board = m_repository->boardAt(index);
+    if (!board) {
+        return entry;
+    }
+
+    entry.boardId = board->boardId;
+    entry.name = board->name;
+    entry.model = board->boardId;
+    entry.version = board->version;
+    entry.created = board->createdAt;
+    entry.sourcePath = board->imagePath;
+
+    entry.components.reserve(board->components.size());
+    for (const auto &component : board->components) {
+        entry.components.push_back(component.label);
+    }
+    return entry;
 }
 
 void BoardManager::loadBoardsFromStorage()
 {
-    const QString baseDir = QCoreApplication::applicationDirPath();
-    const QString storage = QDir(baseDir).filePath(QStringLiteral("board_db"));
-    m_dataManager.setStorageDir(storage);
-    m_dataManager.load();
+    m_databasePath = resolveDatabasePath();
+    SIFT_MATCHER->setDatabasePath(resolveDescriptorDbPath(m_databasePath).toStdString());
+
+    QFileInfo dbInfo(m_databasePath);
+    if (!dbInfo.exists()) {
+        QDir dir = dbInfo.dir();
+        dir.mkpath(QStringLiteral("."));
+        QFile initFile(m_databasePath);
+        if (initFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            initFile.write("{\"boards\":[]}");
+            initFile.close();
+        }
+    }
+
+    QString errorMessage;
+    if (!m_repository->load(m_databasePath, &errorMessage)) {
+        m_boards.clear();
+        m_rowToRepositoryIndex.clear();
+        resetInfoPanel();
+        if (ui->textOtherInfo) {
+            ui->textOtherInfo->setText(errorMessage);
+        }
+        return;
+    }
+
+    if (m_labelEditor) {
+        const QString paramPath = QFileInfo(m_databasePath).dir().filePath(QStringLiteral("i_params_db.json"));
+        m_labelEditor->setTpsParameterDatabasePath(paramPath);
+    }
 
     m_boards.clear();
-    for (const auto &board : m_dataManager.boards()) {
-        BoardEntry entry;
-        entry.name = board.name;
-        entry.model = board.boardId;
-        entry.version = board.version;
-        entry.created = board.createdAt;
-        entry.sourcePath = board.imagePath;
-
-        QVector<CompLabel> components;
-        for (const auto &component : board.components) {
-            const QString labelText = component.type.isEmpty() ? component.reference : component.type;
-            components.append(CompLabel(0,
-                                        component.bbox.x(),
-                                        component.bbox.y(),
-                                        component.bbox.width(),
-                                        component.bbox.height(),
-                                        0,
-                                        0.0,
-                                        labelText,
-                                        component.reference,
-                                        QByteArray()));
-        }
-        entry.components = components;
-
-        m_boards.push_back(entry);
+    m_boards.reserve(m_repository->boardCount());
+    for (int i = 0; i < m_repository->boardCount(); ++i) {
+        m_boards.push_back(buildEntryFromRepositoryBoard(i));
     }
 }
 
 void BoardManager::persistBoards()
 {
-    m_dataManager.save();
+    QString errorMessage;
+    if (!m_repository->save(&errorMessage) && ui->textOtherInfo) {
+        ui->textOtherInfo->setText(QStringLiteral("保存失败：%1").arg(errorMessage));
+    }
 }
 
 void BoardManager::setupConnections()
@@ -215,62 +272,363 @@ void BoardManager::setupConnections()
     if (ui->buttonNewBoard) {
         connect(ui->buttonNewBoard, &QPushButton::clicked, this, &BoardManager::onNewBoard);
     }
+    if (ui->buttonAutoRecognizeBoard) {
+        connect(ui->buttonAutoRecognizeBoard, &QPushButton::clicked, this, &BoardManager::onAutoRecognizeBoard);
+    }
     if (ui->buttonDeleteBoard) {
         connect(ui->buttonDeleteBoard, &QPushButton::clicked, this, &BoardManager::onDeleteBoard);
     }
     if (ui->buttonRefreshList) {
         connect(ui->buttonRefreshList, &QPushButton::clicked, this, &BoardManager::onRefreshBoards);
     }
-    if (ui->buttonEditAnchors) {
-        connect(ui->buttonEditAnchors, &QPushButton::clicked, this, &BoardManager::onEditAnchors);
-    }
     if (ui->buttonEditPlanBindings) {
-        connect(ui->buttonEditPlanBindings, &QPushButton::clicked, this, &BoardManager::onEditPlanBindings);
+        connect(ui->buttonEditPlanBindings, &QPushButton::clicked, this, &BoardManager::onStartSelectedTest);
     }
     if (ui->tableBoards) {
         connect(ui->tableBoards, &QTableWidget::itemSelectionChanged, this, &BoardManager::onBoardSelectionChanged);
     }
 }
 
-QString BoardManager::currentBoardName() const
+bool BoardManager::captureImageFromCamera(QImage *capturedImage)
 {
-    if (!ui->tableBoards) {
-        return QString();
-    }
-    const int row = ui->tableBoards->currentRow();
-    if (row < 0 || row >= ui->tableBoards->rowCount()) {
-        return QString();
-    }
-    const auto *item = ui->tableBoards->item(row, 0);
-    return item ? item->text() : QString();
-}
-
-bool BoardManager::editJsonDialog(const QString &title, const QString &initialText, QString *updatedText)
-{
-    if (!updatedText) {
+    if (!capturedImage) {
         return false;
     }
 
+    QDialog captureDialog(this);
+    captureDialog.setWindowTitle(tr("高清相机采集"));
+    captureDialog.resize(900, 600);
+
+    auto *layout = new QVBoxLayout(&captureDialog);
+    auto *preview = new QLabel(&captureDialog);
+    preview->setMinimumHeight(420);
+    preview->setAlignment(Qt::AlignCenter);
+    preview->setText(tr("等待图像"));
+    layout->addWidget(preview);
+
+    auto *buttons = new QDialogButtonBox(&captureDialog);
+    auto *captureBtn = buttons->addButton(tr("拍照"), QDialogButtonBox::AcceptRole);
+    auto *cancelBtn = buttons->addButton(QDialogButtonBox::Cancel);
+    layout->addWidget(buttons);
+
+    QImage latest;
+    CameraStation::instance()->start();
+    CameraStationClient client(&captureDialog);
+    client.setEnabled(true);
+    client.requestConfigure(CameraStation::Config());
+
+    connect(&client, &CameraStationClient::imageCaptured, &captureDialog, [&latest, preview](const ImageData &img) {
+        if (img.image.isNull()) {
+            return;
+        }
+        latest = img.image;
+        preview->setPixmap(QPixmap::fromImage(latest).scaled(preview->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    });
+
+    connect(captureBtn, &QPushButton::clicked, &captureDialog, [&]() {
+        if (latest.isNull()) {
+            QMessageBox::information(&captureDialog, tr("相机采集"), tr("尚未获取到图像。"));
+            return;
+        }
+        *capturedImage = latest;
+        captureDialog.accept();
+    });
+    connect(cancelBtn, &QAbstractButton::clicked, &captureDialog, &QDialog::reject);
+
+    return captureDialog.exec() == QDialog::Accepted;
+}
+
+bool BoardManager::extractRoiForRecognition(const QImage &sourceImage,
+                                            QImage *roiImage,
+                                            bool *roiIsManualCrop)
+{
+    if (!roiImage || sourceImage.isNull()) {
+        return false;
+    }
+
+    QImage selectedImage = sourceImage;
+    bool useManualCrop = true;
+
     QDialog dialog(this);
-    dialog.setWindowTitle(title);
-    dialog.resize(900, 650);
+    dialog.setWindowTitle(tr("识别ROI提取"));
+    dialog.resize(1000, 700);
 
     auto *layout = new QVBoxLayout(&dialog);
-    auto *editor = new QPlainTextEdit(&dialog);
-    editor->setPlainText(initialText);
-    layout->addWidget(editor);
+    auto *extract = new PCBExtractWidget(&dialog);
+    extract->setInputImage(sourceImage);
+    layout->addWidget(extract);
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    layout->addWidget(buttons);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    auto *useCropCheck = new QCheckBox(tr("使用ROI区域用于板卡匹配"), &dialog);
+    useCropCheck->setChecked(true);
+    layout->addWidget(useCropCheck);
+
+    connect(extract, &PCBExtractWidget::confirmed, &dialog,
+            [&selectedImage, &useManualCrop, useCropCheck, &dialog](const QImage &, const QImage &cropped, const QRectF &) {
+                if (!cropped.isNull()) {
+                    selectedImage = cropped;
+                }
+                useManualCrop = (useCropCheck && useCropCheck->isChecked());
+                dialog.accept();
+            });
 
     if (dialog.exec() != QDialog::Accepted) {
         return false;
     }
 
-    *updatedText = editor->toPlainText();
-    return true;
+    *roiImage = useManualCrop ? selectedImage : sourceImage;
+    if (roiIsManualCrop) {
+        *roiIsManualCrop = useManualCrop;
+    }
+    return !roiImage->isNull();
+}
+
+void BoardManager::selectBoardByRepositoryIndex(int repositoryIndex)
+{
+    if (!ui->tableBoards || repositoryIndex < 0 || repositoryIndex >= m_boards.size()) {
+        return;
+    }
+
+    auto findRow = [this, repositoryIndex]() -> int {
+        for (int row = 0; row < m_rowToRepositoryIndex.size(); ++row) {
+            if (m_rowToRepositoryIndex.at(row) == repositoryIndex) {
+                return row;
+            }
+        }
+        return -1;
+    };
+
+    int row = findRow();
+    if (row < 0) {
+        if (ui->lineEditSearch) {
+            ui->lineEditSearch->clear();
+        }
+        populateBoardTable();
+        row = findRow();
+    }
+
+    if (row < 0) {
+        return;
+    }
+
+    ui->tableBoards->setCurrentCell(row, 0);
+    ui->tableBoards->selectRow(row);
+    if (auto *item = ui->tableBoards->item(row, 0)) {
+        ui->tableBoards->scrollToItem(item, QAbstractItemView::PositionAtCenter);
+    }
+}
+
+void BoardManager::onAutoRecognizeBoard()
+{
+    Logger::log(QStringLiteral("BoardManager auto recognize start: boardCount=%1")
+                    .arg(m_repository ? m_repository->boardCount() : 0),
+                Logger::Level::Info);
+    if (!m_repository || m_repository->boardCount() <= 0) {
+        Logger::log(QStringLiteral("BoardManager auto recognize aborted: repository empty"),
+                    Logger::Level::Warn);
+        QMessageBox::information(this, tr("自动识别"), tr("当前数据库没有板卡，请先录入板卡。"));
+        return;
+    }
+
+    QImage cameraImage;
+    if (!captureImageFromCamera(&cameraImage) || cameraImage.isNull()) {
+        Logger::log(QStringLiteral("BoardManager auto recognize aborted: camera capture failed"),
+                    Logger::Level::Warn);
+        return;
+    }
+    Logger::log(QStringLiteral("BoardManager image captured: size=%1x%2")
+                    .arg(cameraImage.width())
+                    .arg(cameraImage.height()),
+                Logger::Level::Info);
+
+    QImage roiImage;
+    bool roiIsManualCrop = false;
+    if (!extractRoiForRecognition(cameraImage, &roiImage, &roiIsManualCrop) || roiImage.isNull()) {
+        Logger::log(QStringLiteral("BoardManager auto recognize aborted: ROI extraction canceled/failed"),
+                    Logger::Level::Warn);
+        return;
+    }
+    Logger::log(QStringLiteral("BoardManager ROI ready: size=%1x%2")
+                    .arg(roiImage.width())
+                    .arg(roiImage.height()),
+                Logger::Level::Info);
+
+    const cv::Mat matchInputBgr = qimageToBgrMat(roiImage);
+    if (matchInputBgr.empty()) {
+        Logger::log(QStringLiteral("BoardManager auto recognize failed: unsupported ROI format"),
+                    Logger::Level::Error);
+        QMessageBox::warning(this, tr("自动识别"), tr("ROI图像格式不支持，无法进行匹配。"));
+        return;
+    }
+
+    const auto matchResults = SIFT_MATCHER->matchImage(matchInputBgr, roiIsManualCrop);
+    Logger::log(QStringLiteral("BoardManager SIFT match complete: candidateCount=%1")
+                    .arg(matchResults.size()),
+                Logger::Level::Info);
+    if (matchResults.empty()) {
+        QMessageBox::information(this, tr("自动识别"), tr("SIFT未找到可用匹配结果。"));
+        return;
+    }
+
+    QVector<QPair<int, SiftMatcher::MatchResult>> dbMatchedResults;
+    for (const auto &result : matchResults) {
+        const QString boardId = QString::fromStdString(result.boardId).trimmed();
+        if (boardId.isEmpty()) {
+            continue;
+        }
+        const int index = m_repository->indexOfBoard(boardId);
+        if (index >= 0) {
+            dbMatchedResults.push_back(qMakePair(index, result));
+        }
+    }
+
+    if (dbMatchedResults.isEmpty()) {
+        Logger::log(QStringLiteral("BoardManager SIFT candidates missing in repository"),
+                    Logger::Level::Warn);
+        QStringList candidates;
+        const int count = std::min<int>(3, static_cast<int>(matchResults.size()));
+        for (int i = 0; i < count; ++i) {
+            candidates << QString::fromStdString(matchResults[i].boardId);
+        }
+        QMessageBox::information(this,
+                                 tr("自动识别"),
+                                 tr("识别到了候选型号，但在数据库中未找到对应板卡。候选：%1")
+                                     .arg(candidates.join(QStringLiteral("、"))));
+        return;
+    }
+
+    int matchedRepoIndex = dbMatchedResults.first().first;
+    SiftMatcher::MatchResult matchedResult = dbMatchedResults.first().second;
+
+    if (dbMatchedResults.size() > 1) {
+        Logger::log(QStringLiteral("BoardManager multiple candidates: count=%1")
+                        .arg(dbMatchedResults.size()),
+                    Logger::Level::Info);
+        const int topCount = std::min<int>(5, dbMatchedResults.size());
+        QDialog candidateDialog(this);
+        candidateDialog.setWindowTitle(tr("自动识别候选"));
+        candidateDialog.resize(760, 520);
+
+        auto *layout = new QVBoxLayout(&candidateDialog);
+        auto *tipLabel = new QLabel(tr("识别到多个候选板卡，请选择匹配结果："), &candidateDialog);
+        layout->addWidget(tipLabel);
+
+        auto *candidateList = new QListWidget(&candidateDialog);
+        candidateList->setIconSize(QSize(180, 120));
+        candidateList->setSelectionMode(QAbstractItemView::SingleSelection);
+        layout->addWidget(candidateList, 1);
+
+        for (int i = 0; i < topCount; ++i) {
+            const int repositoryIndex = dbMatchedResults.at(i).first;
+            const auto &candidate = dbMatchedResults.at(i).second;
+            const BoardRecord *board = m_repository->boardAt(repositoryIndex);
+            const QString boardName = board ? board->name : QString::fromStdString(candidate.boardId);
+            const QString boardId = QString::fromStdString(candidate.boardId);
+            const QString text = QStringLiteral("%1（%2）\n分数:%3  特征:%4")
+                                     .arg(boardName)
+                                     .arg(boardId)
+                                     .arg(QString::number(candidate.matchScore, 'f', 2))
+                                     .arg(candidate.goodMatchCount);
+
+            auto *item = new QListWidgetItem(text, candidateList);
+            item->setData(Qt::UserRole, i);
+
+            if (board) {
+                const QImage boardImage = loadImageByDbPath(board->imagePath, m_databasePath);
+                if (!boardImage.isNull()) {
+                    const QPixmap preview = QPixmap::fromImage(
+                        boardImage.scaled(candidateList->iconSize(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                    item->setIcon(QIcon(preview));
+                }
+            }
+
+            if (i == 0) {
+                candidateList->setCurrentItem(item);
+            }
+        }
+
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &candidateDialog);
+        layout->addWidget(buttons);
+        connect(buttons, &QDialogButtonBox::accepted, &candidateDialog, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &candidateDialog, &QDialog::reject);
+        connect(candidateList, &QListWidget::itemDoubleClicked, &candidateDialog, [&candidateDialog](QListWidgetItem *) {
+            candidateDialog.accept();
+        });
+
+        if (candidateDialog.exec() != QDialog::Accepted) {
+            Logger::log(QStringLiteral("BoardManager candidate selection canceled"),
+                        Logger::Level::Info);
+            return;
+        }
+
+        const QListWidgetItem *selectedItem = candidateList->currentItem();
+        if (!selectedItem) {
+            return;
+        }
+
+        const int selectedIndex = selectedItem->data(Qt::UserRole).toInt();
+        if (selectedIndex >= 0 && selectedIndex < topCount) {
+            matchedRepoIndex = dbMatchedResults.at(selectedIndex).first;
+            matchedResult = dbMatchedResults.at(selectedIndex).second;
+        }
+    }
+
+    selectBoardByRepositoryIndex(matchedRepoIndex);
+    Logger::log(QStringLiteral("BoardManager auto recognize selected: repoIndex=%1 boardId=%2 score=%3 goodMatches=%4")
+                    .arg(matchedRepoIndex)
+                    .arg(QString::fromStdString(matchedResult.boardId))
+                    .arg(QString::number(matchedResult.matchScore, 'f', 2))
+                    .arg(matchedResult.goodMatchCount),
+                Logger::Level::Info);
+
+    if (ui->textOtherInfo && matchedRepoIndex >= 0 && matchedRepoIndex < m_boards.size()) {
+        const QString summary = QStringLiteral("\n识别结果：%1\n匹配分数：%2\n有效特征点：%3\n候选数量：%4")
+                                    .arg(QString::fromStdString(matchedResult.boardId))
+                                    .arg(QString::number(matchedResult.matchScore, 'f', 2))
+                                    .arg(matchedResult.goodMatchCount)
+                                    .arg(dbMatchedResults.size());
+        ui->textOtherInfo->setText(ui->textOtherInfo->toPlainText() + summary);
+    }
+}
+
+void BoardManager::onStartSelectedTest()
+{
+    if (!m_labelEditor) {
+        return;
+    }
+
+    const int boardIndex = currentRepositoryIndex();
+    if (boardIndex < 0 || boardIndex >= m_boards.size()) {
+        QMessageBox::information(this, tr("测试"), tr("请选择板卡后再执行测试。"));
+        return;
+    }
+
+    const QList<CompLabel> selected = m_labelEditor->selectedLabels();
+    if (selected.isEmpty()) {
+        QMessageBox::information(this, tr("测试"), tr("请先在图上选择元件（支持 Ctrl 多选）。"));
+        return;
+    }
+    const QList<CompLabel> allLabels = m_labelEditor->currentLabels();
+
+    const QString boardId = m_boards.at(boardIndex).boardId.trimmed().isEmpty()
+        ? m_boards.at(boardIndex).name
+        : m_boards.at(boardIndex).boardId;
+
+    if (ui->textOtherInfo) {
+        const QString current = ui->textOtherInfo->toPlainText();
+        const QString selectedLine = QStringLiteral("已选元件：%1").arg(selected.size());
+        if (!current.contains(QStringLiteral("已选元件："))) {
+            ui->textOtherInfo->setText(current + QStringLiteral("\n") + selectedLine);
+        } else {
+            QString updated = current;
+            updated.replace(QRegularExpression(QStringLiteral("已选元件：\\d+")), selectedLine);
+            ui->textOtherInfo->setText(updated);
+        }
+    }
+
+    const QString imagePath = resolveImagePath(m_boards.at(boardIndex).sourcePath);
+    const QImage boardImage = imagePath.trimmed().isEmpty() ? QImage() : QImage(imagePath);
+
+    emit testRequested(boardId, selected, allLabels, boardImage);
 }
 
 void BoardManager::populateBoardTable(const QString &filterText)
@@ -279,14 +637,18 @@ void BoardManager::populateBoardTable(const QString &filterText)
         return;
     }
 
+    m_rowToRepositoryIndex.clear();
     ui->tableBoards->setRowCount(0);
     const QString filter = filterText.trimmed();
 
-    for (const auto &board : m_boards) {
+    for (int index = 0; index < m_boards.size(); ++index) {
+        const auto &board = m_boards.at(index);
+
         if (!filter.isEmpty()) {
             const bool matched = board.name.contains(filter, Qt::CaseInsensitive)
                 || board.model.contains(filter, Qt::CaseInsensitive)
-                || board.version.contains(filter, Qt::CaseInsensitive);
+                || board.version.contains(filter, Qt::CaseInsensitive)
+                || board.boardId.contains(filter, Qt::CaseInsensitive);
             if (!matched) {
                 continue;
             }
@@ -298,17 +660,22 @@ void BoardManager::populateBoardTable(const QString &filterText)
         ui->tableBoards->setItem(row, 1, new QTableWidgetItem(board.model));
         ui->tableBoards->setItem(row, 2, new QTableWidgetItem(board.version));
         ui->tableBoards->setItem(row, 3, new QTableWidgetItem(board.created));
+        m_rowToRepositoryIndex.push_back(index);
     }
 }
 
-int BoardManager::findBoardByName(const QString &name) const
+int BoardManager::currentRepositoryIndex() const
 {
-    for (int i = 0; i < m_boards.size(); ++i) {
-        if (m_boards[i].name.compare(name, Qt::CaseInsensitive) == 0) {
-            return i;
-        }
+    if (!ui->tableBoards) {
+        return -1;
     }
-    return -1;
+
+    const int row = ui->tableBoards->currentRow();
+    if (row < 0 || row >= m_rowToRepositoryIndex.size()) {
+        return -1;
+    }
+
+    return m_rowToRepositoryIndex.at(row);
 }
 
 void BoardManager::updateInfoPanel(const BoardEntry &entry)
@@ -329,10 +696,11 @@ void BoardManager::updateInfoPanel(const BoardEntry &entry)
         ui->labelCreatedTime->setText(entry.created.isEmpty() ? QStringLiteral("-") : entry.created);
     }
     if (ui->textOtherInfo) {
-        ui->textOtherInfo->setText(QStringLiteral("板卡名称：%1\n类型：%2\n版本：%3")
+        ui->textOtherInfo->setText(QStringLiteral("BoardId：%1\n板卡名称：%2\n版本：%3\n数据库：%4")
+                                       .arg(entry.boardId)
                                        .arg(entry.name)
-                                       .arg(entry.model)
-                                       .arg(entry.version));
+                                       .arg(entry.version)
+                                       .arg(m_databasePath));
     }
 }
 
@@ -452,10 +820,10 @@ void BoardManager::onNewBoard()
         return;
     }
 
-    const QString baseDir = QCoreApplication::applicationDirPath();
-    const QDir storageDir(QDir(baseDir).filePath(QStringLiteral("board_db")));
-    const QString imageDir = storageDir.filePath(QStringLiteral("images"));
+    QDir dbDir(QFileInfo(m_databasePath).dir());
+    const QString imageDir = dbDir.filePath(QStringLiteral("images"));
     QDir().mkpath(imageDir);
+
     const QString savedName = QStringLiteral("board_%1.png").arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz"));
     const QString savedPath = QDir(imageDir).filePath(savedName);
     if (!sourceImage.save(savedPath)) {
@@ -501,6 +869,9 @@ void BoardManager::onNewBoard()
         return;
     }
 
+    cv::Mat featureBgr = sourceBgr;
+    bool featureImageIsPcbCrop = false;
+
     QVector<CompLabel> labels;
     try {
         std::vector<CompLabel> results;
@@ -510,6 +881,8 @@ void BoardManager::onNewBoard()
                 QMessageBox::warning(this, tr("新建板卡"), tr("裁剪图片格式不支持。"));
                 return;
             }
+            featureBgr = cropBgr;
+            featureImageIsPcbCrop = true;
             results = YOLOModel::getInstance()->infer(cropBgr, false);
         } else {
             results = YOLOModel::getInstance()->infer(sourceBgr, true);
@@ -555,68 +928,104 @@ void BoardManager::onNewBoard()
     }
 
     const QString name = nameEdit->text().trimmed();
+    QString boardId = modelEdit->text().trimmed();
     if (name.isEmpty()) {
         QMessageBox::information(this, tr("新建板卡"), tr("请输入板卡名称。"));
         return;
     }
-
-    BoardInfoRecord record;
-    record.name = name;
-    record.boardId = modelEdit->text().trimmed();
-    record.version = QStringLiteral("v1");
-    record.createdAt = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-    record.imagePath = savedPath;
-
-    if (!m_dataManager.addBoard(record)) {
-        QMessageBox::warning(this, tr("新建板卡"), tr("板卡已存在或数据无效。"));
-        return;
+    if (boardId.isEmpty()) {
+        boardId = name;
     }
 
-    for (const auto &label : labels) {
-        QString id = m_dataManager.normalizeComponentReference(name, label.position_number);
-        if (id.isEmpty()) {
-            id = m_dataManager.normalizeComponentReference(name, QString());
+    BoardRecord board;
+    board.boardId = boardId;
+    board.name = name;
+    board.version = QStringLiteral("v1");
+    board.createdAt = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    board.imagePath = savedPath;
+
+    int nextId = 1;
+    for (auto &label : labels) {
+        if (label.id <= 0) {
+            label.id = nextId;
         }
-        if (id.isEmpty()) {
-            continue;
+        nextId = std::max(nextId, label.id + 1);
+
+        if (label.position_number.trimmed().isEmpty()) {
+            label.position_number = QString::number(label.id);
         }
 
         BoardComponentRecord component;
-        component.reference = id;
-        component.type = label.label;
-        component.model = QString();
-        component.bbox = QRectF(label.x, label.y, label.w, label.h);
+        component.label = label;
+        component.typeName = componentTypeNameByClassId(label.cls);
+        component.model = label.label;
+        board.components.append(component);
+    }
+    board.nextComponentIndex = nextId;
 
-        m_dataManager.upsertComponent(name, component);
+    QString errorMessage;
+    if (!m_repository->addBoard(board, &errorMessage)) {
+        QMessageBox::warning(this, tr("新建板卡"), tr("保存板卡失败: %1").arg(errorMessage));
+        return;
     }
 
-    const std::vector<std::string> ids = {name.toStdString()};
-    const std::vector<cv::Mat> images = {sourceBgr};
-    SIFT_MATCHER->appendToDatabase(ids, images);
+    if (!m_repository->save(&errorMessage)) {
+        QMessageBox::warning(this, tr("新建板卡"), tr("写回数据库失败: %1").arg(errorMessage));
+        return;
+    }
 
-    persistBoards();
+    const std::vector<std::string> ids = {board.boardId.toStdString()};
+    const std::vector<cv::Mat> images = {featureBgr};
+    SIFT_MATCHER->appendToDatabase(ids, images, featureImageIsPcbCrop);
+
     loadBoardsFromStorage();
     populateBoardTable(ui->lineEditSearch ? ui->lineEditSearch->text() : QString());
 }
 
 void BoardManager::onDeleteBoard()
 {
-    if (!ui->tableBoards) {
-        return;
-    }
-
-    const int row = ui->tableBoards->currentRow();
-    if (row < 0 || row >= ui->tableBoards->rowCount()) {
+    const int boardIndex = currentRepositoryIndex();
+    if (boardIndex < 0) {
         QMessageBox::information(this, tr("Delete Board"), tr("请选择要删除的板卡。"));
         return;
     }
 
-    const QString name = ui->tableBoards->item(row, 0) ? ui->tableBoards->item(row, 0)->text() : QString();
-    if (!name.isEmpty()) {
-        m_dataManager.removeBoard(name);
-        persistBoards();
-        loadBoardsFromStorage();
+    const BoardRecord *board = m_repository->boardAt(boardIndex);
+    if (!board) {
+        return;
     }
+
+    const auto reply = QMessageBox::question(this,
+                                             tr("删除板卡"),
+                                             tr("确定删除板卡 %1 吗？").arg(board->boardId));
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    SIFT_MATCHER->removeFromDatabase(board->boardId.toStdString());
+
+    {
+        TpsParamService tpsParamService;
+        tpsParamService.setDatabasePath(QFileInfo(m_databasePath).dir().filePath(QStringLiteral("i_params_db.json")));
+        QString paramsError;
+        if (!tpsParamService.removeBoardParams(board->boardId, &paramsError)) {
+            QMessageBox::warning(this, tr("删除板卡"), tr("删除参数数据库失败: %1").arg(paramsError));
+            return;
+        }
+    }
+
+    QString errorMessage;
+    if (!m_repository->removeBoardAt(boardIndex, &errorMessage)) {
+        QMessageBox::warning(this, tr("删除板卡"), errorMessage);
+        return;
+    }
+
+    if (!m_repository->save(&errorMessage)) {
+        QMessageBox::warning(this, tr("删除板卡"), errorMessage);
+        return;
+    }
+
+    loadBoardsFromStorage();
     populateBoardTable(ui->lineEditSearch ? ui->lineEditSearch->text() : QString());
 }
 
@@ -629,282 +1038,77 @@ void BoardManager::onRefreshBoards()
     populateBoardTable();
 }
 
-void BoardManager::onEditAnchors()
-{
-    const QString boardName = currentBoardName();
-    if (boardName.isEmpty()) {
-        QMessageBox::information(this, tr("编辑锚点"), tr("请选择板卡。"));
-        return;
-    }
-
-    QJsonArray records;
-    for (const auto &record : m_dataManager.anchors()) {
-        if (record.boardName.compare(boardName, Qt::CaseInsensitive) != 0) {
-            continue;
-        }
-
-        QJsonArray anchors;
-        for (const auto &anchor : record.anchors) {
-            QJsonObject anchorObj;
-            anchorObj.insert(QStringLiteral("id"), anchor.id);
-            anchorObj.insert(QStringLiteral("label"), anchor.label);
-            anchorObj.insert(QStringLiteral("position"), rectToJson(anchor.position));
-            anchors.append(anchorObj);
-        }
-
-        QJsonObject recordObj;
-        recordObj.insert(QStringLiteral("componentRef"), record.componentRef);
-        recordObj.insert(QStringLiteral("anchors"), anchors);
-        records.append(recordObj);
-    }
-
-    QJsonObject root;
-    root.insert(QStringLiteral("boardName"), boardName);
-    root.insert(QStringLiteral("anchors"), records);
-
-    const QString initialText = QString::fromUtf8(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    QString updatedText;
-    if (!editJsonDialog(tr("编辑锚点"), initialText, &updatedText)) {
-        return;
-    }
-
-    QJsonParseError error;
-    const QJsonDocument doc = QJsonDocument::fromJson(updatedText.toUtf8(), &error);
-    if (error.error != QJsonParseError::NoError || !doc.isObject()) {
-        QMessageBox::warning(this, tr("编辑锚点"), tr("JSON 解析失败：%1").arg(error.errorString()));
-        return;
-    }
-
-    const QJsonObject obj = doc.object();
-    const QJsonArray list = obj.value(QStringLiteral("anchors")).toArray();
-
-    m_dataManager.clearAnchors(boardName);
-    for (const auto &value : list) {
-        const QJsonObject recordObj = value.toObject();
-        QString componentRef = recordObj.value(QStringLiteral("componentRef")).toString();
-        if (componentRef.trimmed().isEmpty()) {
-            componentRef = m_dataManager.normalizeComponentReference(boardName, QString());
-        }
-        if (componentRef.trimmed().isEmpty()) {
-            continue;
-        }
-
-        QVector<AnchorPoint> anchors;
-        const QJsonArray anchorsArray = recordObj.value(QStringLiteral("anchors")).toArray();
-        for (const auto &anchorValue : anchorsArray) {
-            const QJsonObject anchorObj = anchorValue.toObject();
-            AnchorPoint anchor;
-            anchor.id = anchorObj.value(QStringLiteral("id")).toString();
-            anchor.label = anchorObj.value(QStringLiteral("label")).toString();
-            anchor.position = rectFromJson(anchorObj.value(QStringLiteral("position")).toObject());
-            anchors.push_back(anchor);
-        }
-
-        m_dataManager.upsertAnchors(boardName, componentRef, anchors);
-    }
-
-    persistBoards();
-    loadBoardsFromStorage();
-}
-
-void BoardManager::onEditPlanBindings()
-{
-    const QString boardName = currentBoardName();
-    if (boardName.isEmpty()) {
-        QMessageBox::information(this, tr("编辑计划绑定"), tr("请选择板卡。"));
-        return;
-    }
-
-    QJsonArray bindings;
-    for (const auto &record : m_dataManager.planBindings()) {
-        if (record.boardName.compare(boardName, Qt::CaseInsensitive) != 0) {
-            continue;
-        }
-
-        for (const auto &binding : record.bindings) {
-            QJsonObject params;
-            for (auto it = binding.parameterValues.cbegin(); it != binding.parameterValues.cend(); ++it) {
-                params.insert(it.key(), QJsonValue::fromVariant(it.value()));
-            }
-
-            QJsonObject bindingObj;
-            bindingObj.insert(QStringLiteral("componentRef"), binding.componentRef);
-            bindingObj.insert(QStringLiteral("planId"), binding.planId);
-            bindingObj.insert(QStringLiteral("parameterValues"), params);
-            bindingObj.insert(QStringLiteral("hasTemperatureOverride"), binding.hasTemperatureOverride);
-            bindingObj.insert(QStringLiteral("temperatureOverride"), temperatureSpecToJson(binding.temperatureOverride));
-            bindings.append(bindingObj);
-        }
-        break;
-    }
-
-    QJsonObject root;
-    root.insert(QStringLiteral("boardName"), boardName);
-    root.insert(QStringLiteral("bindings"), bindings);
-
-    const QString initialText = QString::fromUtf8(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    QString updatedText;
-    if (!editJsonDialog(tr("编辑计划绑定"), initialText, &updatedText)) {
-        return;
-    }
-
-    QJsonParseError error;
-    const QJsonDocument doc = QJsonDocument::fromJson(updatedText.toUtf8(), &error);
-    if (error.error != QJsonParseError::NoError || !doc.isObject()) {
-        QMessageBox::warning(this, tr("编辑计划绑定"), tr("JSON 解析失败：%1").arg(error.errorString()));
-        return;
-    }
-
-    const QJsonObject obj = doc.object();
-    const QJsonArray list = obj.value(QStringLiteral("bindings")).toArray();
-
-    m_dataManager.clearPlanBindings(boardName);
-    for (const auto &value : list) {
-        const QJsonObject bindingObj = value.toObject();
-        ComponentPlanBinding binding;
-        binding.componentRef = bindingObj.value(QStringLiteral("componentRef")).toString();
-        if (binding.componentRef.trimmed().isEmpty()) {
-            binding.componentRef = m_dataManager.normalizeComponentReference(boardName, QString());
-        }
-        binding.planId = bindingObj.value(QStringLiteral("planId")).toString();
-
-        const QJsonObject paramsObj = bindingObj.value(QStringLiteral("parameterValues")).toObject();
-        for (auto it = paramsObj.begin(); it != paramsObj.end(); ++it) {
-            binding.parameterValues.insert(it.key(), it.value().toVariant());
-        }
-
-        binding.hasTemperatureOverride = bindingObj.value(QStringLiteral("hasTemperatureOverride")).toBool(false);
-        binding.temperatureOverride = temperatureSpecFromJson(bindingObj.value(QStringLiteral("temperatureOverride")).toObject());
-
-        if (!binding.componentRef.trimmed().isEmpty() && !binding.planId.trimmed().isEmpty()) {
-            m_dataManager.upsertPlanBinding(boardName, binding);
-        }
-    }
-
-    persistBoards();
-    loadBoardsFromStorage();
-}
-
-
-void BoardManager::onOpenLabelEditor()
-{
-    auto *dialog = new QDialog(this);
-    dialog->setWindowTitle(tr("标签编辑"));
-    dialog->resize(1100, 800);
-
-    auto *layout = new QVBoxLayout(dialog);
-    layout->setContentsMargins(8, 8, 8, 8);
-
-    auto *editor = new LebalItemManager(dialog);
-    layout->addWidget(editor);
-
-    connect(editor, &LebalItemManager::diagnoseRequested, this,
-            [this](const QList<CompLabel> &labels) {
-                if (!ui->tableBoards) {
-                    return;
-                }
-                const int row = ui->tableBoards->currentRow();
-                if (row < 0 || row >= ui->tableBoards->rowCount()) {
-                    return;
-                }
-                const QString boardName = ui->tableBoards->item(row, 0)
-                                              ? ui->tableBoards->item(row, 0)->text()
-                                              : QString();
-                if (boardName.isEmpty()) {
-                    return;
-                }
-
-                QSet<QString> newIds;
-                for (const auto &label : labels) {
-                    QString id = m_dataManager.normalizeComponentReference(boardName, label.position_number);
-                    if (id.isEmpty()) {
-                        id = m_dataManager.normalizeComponentReference(boardName, QString());
-                    }
-                    if (id.isEmpty()) {
-                        continue;
-                    }
-                    newIds.insert(id);
-
-                    BoardComponentRecord record;
-                    record.reference = id;
-                    record.type = label.label;
-                    record.model = QString();
-                    record.bbox = QRectF(label.x, label.y, label.w, label.h);
-
-                    m_dataManager.upsertComponent(boardName, record);
-                }
-
-                const int boardIndex = findBoardByName(boardName);
-                if (boardIndex >= 0) {
-                    const auto existingIds = m_boards[boardIndex].components;
-                    for (const auto &comp : existingIds) {
-                        const QString id = comp.position_number;
-                        if (!newIds.contains(id)) {
-                            m_dataManager.removeComponent(boardName, id);
-                        }
-                    }
-                }
-
-                persistBoards();
-                loadBoardsFromStorage();
-                const int refreshed = findBoardByName(boardName);
-                if (refreshed >= 0) {
-                    updateInfoPanel(m_boards[refreshed]);
-                }
-            });
-
-    dialog->setAttribute(Qt::WA_DeleteOnClose, true);
-    dialog->exec();
-}
-
 void BoardManager::onBoardSelectionChanged()
 {
-    if (!ui->tableBoards || ui->tableBoards->currentRow() < 0) {
+    const int boardIndex = currentRepositoryIndex();
+    if (boardIndex < 0 || boardIndex >= m_boards.size()) {
         return;
     }
 
-    const int row = ui->tableBoards->currentRow();
-    const QString name = ui->tableBoards->item(row, 0) ? ui->tableBoards->item(row, 0)->text() : QString();
-    const int index = findBoardByName(name);
-    if (index < 0) {
-        return;
-    }
-
-    const auto &entry = m_boards[index];
-    if (ui->lineEditBoardName) {
-        ui->lineEditBoardName->setText(entry.name);
-    }
-    if (ui->lineEditBoardModel) {
-        ui->lineEditBoardModel->setText(entry.model);
-    }
-    if (ui->lineEditBoardVersion) {
-        ui->lineEditBoardVersion->setText(entry.version);
-    }
+    const auto &entry = m_boards.at(boardIndex);
     updateInfoPanel(entry);
 
     if (m_labelEditor) {
-        if (!entry.sourcePath.isEmpty()) {
-            QImage image(entry.sourcePath);
-            if (!image.isNull()) {
-                m_labelEditor->setImage(image);
-            }
+        m_loadingBoard = true;
+        const QImage image = loadImageByDbPath(entry.sourcePath, m_databasePath);
+        m_labelEditor->setImage(image);
+        m_labelEditor->setLabels(QList<CompLabel>(entry.components.cbegin(), entry.components.cend()), true);
+        m_labelEditor->setCurrentBoardId(entry.boardId);
+        m_loadingBoard = false;
+    }
+}
+
+void BoardManager::onLabelsChanged(const QList<CompLabel> &labels)
+{
+    if (m_loadingBoard) {
+        return;
+    }
+
+    const int boardIndex = currentRepositoryIndex();
+    const BoardRecord *current = m_repository->boardAt(boardIndex);
+    if (!current) {
+        return;
+    }
+
+    BoardRecord board = *current;
+    board.components.clear();
+    board.components.reserve(labels.size());
+
+    int maxId = 0;
+    for (CompLabel label : labels) {
+        if (label.id <= 0) {
+            label.id = ++maxId;
         }
-        QList<CompLabel> labels;
-        int nextId = 1;
-        for (const auto &component : entry.components) {
-            const QString labelText = component.label.isEmpty() ? component.position_number : component.label;
-            labels.append(CompLabel(nextId++,
-                                    component.x,
-                                    component.y,
-                                    component.w,
-                                    component.h,
-                                    0,
-                                    0.0,
-                                    labelText,
-                                    component.position_number,
-                                    QByteArray()));
+        maxId = std::max(maxId, label.id);
+        if (label.position_number.trimmed().isEmpty()) {
+            label.position_number = QString::number(label.id);
         }
-        m_labelEditor->setImage(entry.sourceImage);
-        m_labelEditor->setLabels(labels, true);
+
+        BoardComponentRecord component;
+        component.label = label;
+        component.typeName = componentTypeNameByClassId(label.cls);
+        component.model = label.label;
+        board.components.append(component);
+    }
+    board.nextComponentIndex = std::max(board.nextComponentIndex, maxId + 1);
+
+    QString errorMessage;
+    if (!m_repository->updateBoard(boardIndex, board, &errorMessage)) {
+        if (ui->textOtherInfo) {
+            ui->textOtherInfo->setText(QStringLiteral("更新失败：%1").arg(errorMessage));
+        }
+        return;
+    }
+
+    if (!m_repository->save(&errorMessage)) {
+        if (ui->textOtherInfo) {
+            ui->textOtherInfo->setText(QStringLiteral("写回失败：%1").arg(errorMessage));
+        }
+        return;
+    }
+
+    if (boardIndex >= 0 && boardIndex < m_boards.size()) {
+        m_boards[boardIndex] = buildEntryFromRepositoryBoard(boardIndex);
+        updateInfoPanel(m_boards[boardIndex]);
     }
 }

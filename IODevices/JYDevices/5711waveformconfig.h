@@ -101,9 +101,52 @@ public:
 class PulseWave : public Waveform {
     double amplitude;
     double frequency;
+    bool useTimingModel;
+    double vLow;
+    double vHigh;
+    double tDelaySec;
+    double tOnSec;
+    double tPeriodSec;
 public:
-    PulseWave(double amp, double freq) : amplitude(amp), frequency(freq) {}
+    PulseWave(double amp, double freq)
+        : amplitude(amp)
+        , frequency(freq)
+        , useTimingModel(false)
+        , vLow(0.0)
+        , vHigh(amp)
+        , tDelaySec(0.0)
+        , tOnSec(0.0)
+        , tPeriodSec(0.0)
+    {
+    }
+
+    PulseWave(double low, double high, double delaySec, double onSec, double periodSec)
+        : amplitude(high)
+        , frequency((periodSec > 0.0) ? (1.0 / periodSec) : 0.0)
+        , useTimingModel(true)
+        , vLow(low)
+        , vHigh(high)
+        , tDelaySec(delaySec)
+        , tOnSec(onSec)
+        , tPeriodSec(periodSec)
+    {
+    }
+
     double generate(int sampleIndex, int SamplesRate) override {
+        if (useTimingModel) {
+            if (SamplesRate <= 0 || tPeriodSec <= 0.0) {
+                return vLow;
+            }
+            const int samplesPerPeriod = qMax(1, static_cast<int>(std::round(tPeriodSec * SamplesRate)));
+            const int samplesDelay = qBound(0, static_cast<int>(std::round(tDelaySec * SamplesRate)), samplesPerPeriod);
+            const int samplesOn = qBound(0, static_cast<int>(std::round(tOnSec * SamplesRate)), samplesPerPeriod - samplesDelay);
+            const int position = sampleIndex % samplesPerPeriod;
+            if (position >= samplesDelay && position < samplesDelay + samplesOn) {
+                return vHigh;
+            }
+            return vLow;
+        }
+
         double cycleIncrement = frequency / SamplesRate;
         double position = cycleIncrement * (sampleIndex % SamplesRate);
         if (position - floor(position) < 0.5) {
@@ -181,7 +224,16 @@ inline QVector<PXIe5711_testtype> PXIe5711_waveform_options()
     };
 }
 
-inline std::unique_ptr<Waveform> PXIe5711_create_waveform(PXIe5711_testtype type, double amplitude, double frequency, double dutyCycle)
+inline std::unique_ptr<Waveform> PXIe5711_create_waveform(PXIe5711_testtype type,
+                                                           double amplitude,
+                                                           double frequency,
+                                                           double dutyCycle,
+                                                           double pulseVLow = 0.0,
+                                                           double pulseVHigh = 0.0,
+                                                           double pulseTDelaySec = 0.0,
+                                                           double pulseTOnSec = 0.0,
+                                                           double pulseTPeriodSec = 0.0,
+                                                           bool pulseUseTiming = false)
 {
     switch (type) {
         case PXIe5711_testtype::SineWave:
@@ -197,6 +249,9 @@ inline std::unique_ptr<Waveform> PXIe5711_create_waveform(PXIe5711_testtype type
         case PXIe5711_testtype::LowLevelWave:
             return std::make_unique<LowLevelWave>(amplitude);
         case PXIe5711_testtype::PulseWave:
+            if (pulseUseTiming) {
+                return std::make_unique<PulseWave>(pulseVLow, pulseVHigh, pulseTDelaySec, pulseTOnSec, pulseTPeriodSec);
+            }
             return std::make_unique<PulseWave>(amplitude, frequency);
         case PXIe5711_testtype::RampWave:
             return std::make_unique<RampWave>(amplitude, frequency);

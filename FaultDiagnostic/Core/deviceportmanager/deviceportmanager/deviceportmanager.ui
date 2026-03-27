@@ -1,0 +1,442 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>deviceportmanager</class>
+ <widget class="QWidget" name="deviceportmanager">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1180</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>端口与采集框管理</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QSplitter" name="splitterMain">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QWidget" name="leftPanel">
+      <layout class="QVBoxLayout" name="leftLayout">
+       <item>
+        <widget class="QGroupBox" name="groupPorts">
+         <property name="title">
+          <string>端口管理</string>
+         </property>
+         <layout class="QVBoxLayout" name="portsLayout">
+          <item>
+           <widget class="QTableWidget" name="tablePorts">
+            <property name="alternatingRowColors">
+             <bool>true</bool>
+            </property>
+            <property name="selectionBehavior">
+             <enum>QAbstractItemView::SelectRows</enum>
+            </property>
+            <property name="selectionMode">
+             <enum>QAbstractItemView::SingleSelection</enum>
+            </property>
+            <property name="editTriggers">
+             <set>QAbstractItemView::NoEditTriggers</set>
+            </property>
+            <property name="columnCount">
+             <number>6</number>
+            </property>
+            <column>
+             <property name="text">
+              <string>端口ID</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>类型</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>方向</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>设备</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>通道</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>状态</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="replaceLayout">
+            <item>
+             <widget class="QLabel" name="labelReplace">
+              <property name="text">
+               <string>替换端口(同类型)</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboOldPort" />
+            </item>
+            <item>
+             <widget class="QLabel" name="labelTo">
+              <property name="text">
+               <string>→</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboNewPort" />
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnReplacePort">
+              <property name="text">
+               <string>替换</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerReplace">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupSequence">
+         <property name="title">
+          <string>测试序列</string>
+         </property>
+         <layout class="QVBoxLayout" name="sequenceLayout">
+          <item>
+           <widget class="QTableWidget" name="tableSequence">
+            <property name="alternatingRowColors">
+             <bool>true</bool>
+            </property>
+            <property name="selectionBehavior">
+             <enum>QAbstractItemView::SelectRows</enum>
+            </property>
+            <property name="selectionMode">
+             <enum>QAbstractItemView::SingleSelection</enum>
+            </property>
+            <property name="editTriggers">
+             <set>QAbstractItemView::NoEditTriggers</set>
+            </property>
+            <property name="columnCount">
+             <number>5</number>
+            </property>
+            <column>
+             <property name="text">
+              <string>步骤</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>端口配置</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>框配置</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>持续(s)</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>备注</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="sequenceButtons">
+            <item>
+             <widget class="QPushButton" name="btnSeqAdd">
+              <property name="text">
+               <string>新增</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnSeqRemove">
+              <property name="text">
+               <string>删除</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnSeqUp">
+              <property name="text">
+               <string>上移</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnSeqDown">
+              <property name="text">
+               <string>下移</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerSeq">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnSeqRun">
+              <property name="text">
+               <string>运行序列</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="rightPanel">
+      <layout class="QVBoxLayout" name="rightLayout">
+       <item>
+        <widget class="QGroupBox" name="groupIR">
+         <property name="title">
+          <string>红外图像与采集框</string>
+         </property>
+         <layout class="QVBoxLayout" name="irLayout">
+          <item>
+           <widget class="QGraphicsView" name="irView">
+            <property name="minimumSize">
+             <size>
+              <width>480</width>
+              <height>320</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="boxButtons">
+            <item>
+             <widget class="QPushButton" name="btnAddBox">
+              <property name="text">
+               <string>新增框</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnRemoveBox">
+              <property name="text">
+               <string>删除框</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnClearBoxes">
+              <property name="text">
+               <string>清空框</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerBoxButtons">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QTableWidget" name="tableBoxes">
+            <property name="alternatingRowColors">
+             <bool>true</bool>
+            </property>
+            <property name="selectionBehavior">
+             <enum>QAbstractItemView::SelectRows</enum>
+            </property>
+            <property name="selectionMode">
+             <enum>QAbstractItemView::SingleSelection</enum>
+            </property>
+            <property name="editTriggers">
+             <set>QAbstractItemView::NoEditTriggers</set>
+            </property>
+            <property name="columnCount">
+             <number>5</number>
+            </property>
+            <column>
+             <property name="text">
+              <string>框ID</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>名称</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>采集数据</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>预警温度</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>报警温度</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupBoxConfig">
+         <property name="title">
+          <string>采集框配置</string>
+         </property>
+         <layout class="QFormLayout" name="boxConfigLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelBoxName">
+            <property name="text">
+             <string>名称</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="editBoxName" />
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="labelDataType">
+            <property name="text">
+             <string>采集项</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <layout class="QHBoxLayout" name="dataTypeLayout">
+            <item>
+             <widget class="QCheckBox" name="checkMax">
+              <property name="text">
+               <string>最高</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="checkAvg">
+              <property name="text">
+               <string>平均</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="checkMin">
+              <property name="text">
+               <string>最低</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="labelWarnTemp">
+            <property name="text">
+             <string>预警温度(℃)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QDoubleSpinBox" name="spinWarnTemp">
+            <property name="minimum">
+             <double>-100.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>500.000000000000000</double>
+            </property>
+            <property name="decimals">
+             <number>2</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelStopTemp">
+            <property name="text">
+             <string>报警停止温度(℃)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QDoubleSpinBox" name="spinStopTemp">
+            <property name="minimum">
+             <double>-100.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>500.000000000000000</double>
+            </property>
+            <property name="decimals">
+             <number>2</number>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QCheckBox" name="checkStopOnAlarm">
+            <property name="text">
+             <string>报警后停止测试</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

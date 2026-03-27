@@ -49,12 +49,13 @@ public:
     const std::vector<int>& get_class_display() const { return class_display; }
 
 private:
+    static QString defaultModelPath();
     void loadModel();
     std::unique_ptr<Ort::Env> env;
     Ort::SessionOptions session_options;
     std::unique_ptr<Ort::Session> session;
     Ort::MemoryInfo memory_info;
-    std::wstring model_path = L"D:/FaultDetect/Program/FaultDetect/ATS/ComponentsDetect/model/best.onnx";
+    std::wstring model_path;
     std::vector<int> class_display = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
     std::vector<CompLabel> CompLabels;
 

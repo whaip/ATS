@@ -20,7 +20,7 @@ class MainWindow;
 QT_END_NAMESPACE
 
 class PageButtonManager;
-class LebalItemManager;
+class ComponentsDetect;
 class DataCaptureCard;
 class IRCamera;
 class DataGenerateCard;
@@ -52,8 +52,8 @@ public:
 private:
     Ui::MainWindow *ui;
     PageButtonManager *m_pageButtonManager = nullptr;
-    LebalItemManager *m_maintainPage = nullptr;
-    int m_maintainPageIndex = -1;
+    ComponentsDetect *m_componentsDetectPage = nullptr;
+    int m_componentsDetectPageIndex = -1;
     DataCaptureCard *m_dataCapturePage = nullptr;
     int m_dataCapturePageIndex = -1;
     IRCamera *m_irCameraPage = nullptr;

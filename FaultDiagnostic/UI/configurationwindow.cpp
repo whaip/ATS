@@ -1,28 +1,39 @@
-#include "configurationwindow.h"
+﻿#include "configurationwindow.h"
 #include "ui_configurationwindow.h"
 
-#include "../TPS/Plugins/exampletpsplugin.h"
-#include "../TPS/Plugins/multitpsplugin.h"
-#include "../TPS/Plugins/resistancetpsplugin.h"
 #include "../TPS/Manager/tpspluginmanager.h"
+#include "../TPS/Manager/tpsbuiltinregistry.h"
 #include "../Core/testsequencemanager.h"
+#include "../../componenttyperegistry.h"
 
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
+#include <QDir>
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QFrame>
 #include <QFormLayout>
 #include <QHeaderView>
+#include <QHBoxLayout>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QRegularExpression>
 #include <QScrollArea>
+#include <QSaveFile>
 #include <QSpinBox>
 #include <QTableWidget>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace {
@@ -33,12 +44,41 @@ QString themeQssPath()
                 : QStringLiteral("styles/testsequence_light.qss");
 }
 
+QString resolvePluginDir(const QString &relativePath)
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    QStringList candidates;
+    candidates << QDir(appDir).filePath(relativePath);
+
+    QDir probe(appDir);
+    for (int depth = 0; depth < 8; ++depth) {
+        candidates << probe.filePath(relativePath);
+        if (!probe.cdUp()) {
+            break;
+        }
+    }
+
+    for (const QString &candidate : candidates) {
+        QFileInfo info(candidate);
+        if (info.exists() && info.isDir()) {
+            return QDir::cleanPath(candidate);
+        }
+    }
+
+    return QDir::cleanPath(candidates.first());
+}
+
 struct AddDialogResult {
     bool accepted = false;
     QString componentRef;
     QString pluginId;
     QMap<QString, QVariant> parameters;
 };
+
+QTableWidget *sequenceTable(QWidget *owner)
+{
+    return owner ? owner->findChild<QTableWidget *>(QStringLiteral("sequenceTable")) : nullptr;
+}
 }
 
 ConfigurationWindow::ConfigurationWindow(QWidget *parent)
@@ -47,29 +87,19 @@ ConfigurationWindow::ConfigurationWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    if (ui->sequenceTable) {
-        ui->sequenceTable->setColumnCount(2);
-        ui->sequenceTable->setHorizontalHeaderLabels({tr("元器件"), tr("插件")});
-        ui->sequenceTable->horizontalHeader()->setStretchLastSection(true);
-        ui->sequenceTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-        ui->sequenceTable->setSelectionMode(QAbstractItemView::SingleSelection);
-        connect(ui->sequenceTable, &QTableWidget::itemSelectionChanged, this, &ConfigurationWindow::onSelectionChanged);
-    }
-
-    if (ui->btnAddItem) {
-        connect(ui->btnAddItem, &QToolButton::clicked, this, &ConfigurationWindow::onAddItem);
-    }
-    if (ui->btnRemoveItem) {
-        connect(ui->btnRemoveItem, &QToolButton::clicked, this, &ConfigurationWindow::onRemoveItem);
-    }
-    if (ui->btnImport) {
-        connect(ui->btnImport, &QToolButton::clicked, this, &ConfigurationWindow::onImportSequence);
-    }
-    if (ui->btnExport) {
-        connect(ui->btnExport, &QToolButton::clicked, this, &ConfigurationWindow::onExportSequence);
+    if (auto *table = sequenceTable(this)) {
+        table->setColumnCount(3);
+        table->setHorizontalHeaderLabels({tr("Ref"), tr("Type"), tr("Plugin")});
+        table->horizontalHeader()->setStretchLastSection(true);
+        table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        table->setSelectionMode(QAbstractItemView::SingleSelection);
+        connect(table, &QTableWidget::itemSelectionChanged, this, &ConfigurationWindow::onSelectionChanged);
     }
 
     loadPlugins();
+    loadComponentBindings();
+    setupBindingEditorUi();
+    rebuildBindingEditorUi();
     setSequenceManager(new TestSequenceManager(this));
     applyThemeQss();
 }
@@ -104,6 +134,11 @@ TestSequenceManager *ConfigurationWindow::sequenceManager() const
     return m_manager;
 }
 
+int ConfigurationWindow::currentIndex() const
+{
+    return m_currentIndex;
+}
+
 void ConfigurationWindow::changeEvent(QEvent *event)
 {
     QWidget::changeEvent(event);
@@ -115,25 +150,35 @@ void ConfigurationWindow::changeEvent(QEvent *event)
 void ConfigurationWindow::onAddItem()
 {
     if (!m_manager || m_plugins.isEmpty()) {
-        QMessageBox::information(this, tr("测试序列"), tr("未发现可用的TPS插件。"));
+        QMessageBox::information(this, tr("Sequence"), tr("No TPS plugins loaded."));
         return;
     }
 
     QDialog dialog(this);
-    dialog.setWindowTitle(tr("新增被测元器件"));
+    dialog.setWindowTitle(tr("Add Sequence Item"));
     dialog.setModal(true);
 
     auto *layout = new QVBoxLayout(&dialog);
     auto *formLayout = new QFormLayout();
     auto *refEdit = new QLineEdit(&dialog);
+    auto *typeBox = new QComboBox(&dialog);
+    typeBox->setEditable(true);
     auto *pluginBox = new QComboBox(&dialog);
 
+    QStringList typeKeys = m_componentTypes;
+    typeKeys.sort(Qt::CaseInsensitive);
+    for (const QString &key : typeKeys) {
+        typeBox->addItem(key);
+    }
+
+    pluginBox->addItem(tr("(None)"), QString());
     for (auto it = m_plugins.begin(); it != m_plugins.end(); ++it) {
         pluginBox->addItem(it.value()->displayName(), it.key());
     }
 
-    formLayout->addRow(tr("元器件编号"), refEdit);
-    formLayout->addRow(tr("插件"), pluginBox);
+    formLayout->addRow(tr("Component Ref"), refEdit);
+    formLayout->addRow(tr("Component Type"), typeBox);
+    formLayout->addRow(tr("TPS Plugin"), pluginBox);
     layout->addLayout(formLayout);
 
     auto *paramScroll = new QScrollArea(&dialog);
@@ -145,7 +190,7 @@ void ConfigurationWindow::onAddItem()
 
     QMap<QString, QWidget *> paramEditors;
 
-    const auto rebuildParams = [&]() {
+    const auto rebuildParams = [&paramEditors, paramLayout, pluginBox, paramContainer, this]() {
         qDeleteAll(paramEditors);
         paramEditors.clear();
         while (paramLayout->rowCount() > 0) {
@@ -165,8 +210,21 @@ void ConfigurationWindow::onAddItem()
         }
     };
 
+    const auto applySuggestedPlugin = [this, typeBox, pluginBox]() {
+        const QString suggested = suggestedPluginForType(typeBox->currentText());
+        if (suggested.isEmpty()) {
+            return;
+        }
+        const int idx = pluginBox->findData(suggested);
+        if (idx >= 0) {
+            pluginBox->setCurrentIndex(idx);
+        }
+    };
+
+    applySuggestedPlugin();
     rebuildParams();
-    connect(pluginBox, &QComboBox::currentIndexChanged, &dialog, [=](int) { rebuildParams(); });
+    connect(typeBox, &QComboBox::editTextChanged, &dialog, [applySuggestedPlugin](const QString &) { applySuggestedPlugin(); });
+    connect(pluginBox, &QComboBox::currentIndexChanged, &dialog, [rebuildParams](int) { rebuildParams(); });
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
@@ -179,7 +237,13 @@ void ConfigurationWindow::onAddItem()
 
     const QString ref = refEdit->text().trimmed();
     if (ref.isEmpty()) {
-        QMessageBox::warning(this, tr("测试序列"), tr("元器件编号不能为空。"));
+        QMessageBox::warning(this, tr("Sequence"), tr("Component Ref cannot be empty."));
+        return;
+    }
+
+    const QString componentType = typeBox->currentText().trimmed();
+    if (componentType.isEmpty()) {
+        QMessageBox::warning(this, tr("Sequence"), tr("Component Type cannot be empty."));
         return;
     }
 
@@ -190,22 +254,40 @@ void ConfigurationWindow::onAddItem()
 
     TestSequenceManager::Item item;
     item.componentRef = ref;
+    item.componentType = componentType;
     item.pluginId = pluginId;
     item.parameters = params;
     m_manager->addItem(item);
-}
 
+    const QString key = normalizedComponentType(componentType);
+    if (!key.isEmpty()) {
+        if (!m_componentTypes.contains(componentType, Qt::CaseInsensitive)) {
+            m_componentTypes.push_back(componentType);
+        }
+        if (pluginId.isEmpty()) {
+            m_componentPluginBindings.remove(key);
+        } else {
+            m_componentPluginBindings.insert(key, pluginId);
+        }
+        QString error;
+        if (!saveComponentBindings(&error)) {
+            QMessageBox::warning(this, tr("Sequence"), tr("Failed to save type bindings: %1").arg(error));
+        }
+        rebuildBindingEditorUi();
+    }
+}
 void ConfigurationWindow::onRemoveItem()
 {
-    if (!m_manager || !ui->sequenceTable) {
+    auto *table = sequenceTable(this);
+    if (!m_manager || !table) {
         return;
     }
-    const int row = ui->sequenceTable->currentRow();
+    const int row = table->currentRow();
     if (row < 0) {
         return;
     }
     m_manager->removeItem(row);
-    clearDetail();
+    m_currentIndex = -1;
 }
 
 void ConfigurationWindow::onImportSequence()
@@ -213,13 +295,13 @@ void ConfigurationWindow::onImportSequence()
     if (!m_manager) {
         return;
     }
-    const QString path = QFileDialog::getOpenFileName(this, tr("加载测试序列"), QString(), tr("JSON Files (*.json)"));
+    const QString path = QFileDialog::getOpenFileName(this, tr("鍔犺浇娴嬭瘯搴忓垪"), QString(), tr("JSON Files (*.json)"));
     if (path.isEmpty()) {
         return;
     }
     QString error;
     if (!m_manager->loadFromFile(path, &error)) {
-        QMessageBox::warning(this, tr("测试序列"), error);
+        QMessageBox::warning(this, tr("娴嬭瘯搴忓垪"), error);
     }
 }
 
@@ -228,23 +310,36 @@ void ConfigurationWindow::onExportSequence()
     if (!m_manager) {
         return;
     }
-    const QString path = QFileDialog::getSaveFileName(this, tr("导出测试序列"), QString(), tr("JSON Files (*.json)"));
+    const QString path = QFileDialog::getSaveFileName(this, tr("瀵煎嚭娴嬭瘯搴忓垪"), QString(), tr("JSON Files (*.json)"));
     if (path.isEmpty()) {
         return;
     }
     QString error;
     if (!m_manager->saveToFile(path, &error)) {
-        QMessageBox::warning(this, tr("测试序列"), error);
+        QMessageBox::warning(this, tr("娴嬭瘯搴忓垪"), error);
     }
 }
 
 void ConfigurationWindow::onSelectionChanged()
 {
-    if (!ui->sequenceTable) {
+    auto *table = sequenceTable(this);
+    if (!table) {
         return;
     }
-    const int row = ui->sequenceTable->currentRow();
-    refreshDetail(row);
+    m_currentIndex = table->currentRow();
+}
+
+void ConfigurationWindow::onStartTest()
+{
+    auto *table = sequenceTable(this);
+    if (!m_manager || !table) {
+        return;
+    }
+    const int row = table->currentRow();
+    if (row < 0 || row >= m_manager->count()) {
+        return;
+    }
+    emit startTestRequested(row);
 }
 
 void ConfigurationWindow::loadPlugins()
@@ -254,19 +349,8 @@ void ConfigurationWindow::loadPlugins()
     }
 
     m_pluginManager = new TPSPluginManager(this);
-    m_pluginManager->setPluginDir(QStringLiteral("D:/FaultDetect/Program/FaultDetect/ATS/FaultDiagnostic/TPS/Plugins"));
-
-    auto *example = new ExampleTpsPlugin();
-    example->setParent(m_pluginManager);
-    m_pluginManager->addBuiltin(example);
-
-    auto *resistance = new ResistanceTpsPlugin();
-    resistance->setParent(m_pluginManager);
-    m_pluginManager->addBuiltin(resistance);
-
-    auto *multi = new MultiSignalTpsPlugin();
-    multi->setParent(m_pluginManager);
-    m_pluginManager->addBuiltin(multi);
+    m_pluginManager->setPluginDir(resolvePluginDir(QStringLiteral("tps_plugins")));
+    registerDefaultTpsBuiltins(m_pluginManager, m_pluginManager);
 
     QString error;
     m_pluginManager->loadAll(&error);
@@ -280,118 +364,281 @@ void ConfigurationWindow::loadPlugins()
     }
 }
 
+void ConfigurationWindow::loadComponentBindings()
+{
+    const ComponentTypeRegistryData registry = ComponentTypeRegistry::load();
+    m_componentTypes = registry.types;
+    m_componentPluginBindings = registry.bindings;
+    if (m_componentTypes.isEmpty()) {
+        m_componentTypes = ComponentTypeRegistry::defaultTypes();
+    }
+}
+
+bool ConfigurationWindow::saveComponentBindings(QString *errorMessage) const
+{
+    ComponentTypeRegistryData registry;
+    registry.types = m_componentTypes;
+    registry.bindings = m_componentPluginBindings;
+    return ComponentTypeRegistry::save(registry, errorMessage);
+}
+
+QString ConfigurationWindow::normalizedComponentType(const QString &value) const
+{
+    return ComponentTypeRegistry::normalizeTypeKey(value);
+}
+
+QString ConfigurationWindow::suggestedPluginForType(const QString &componentType) const
+{
+    const QString key = normalizedComponentType(componentType);
+    if (key.isEmpty()) {
+        return {};
+    }
+
+    return m_componentPluginBindings.value(key).trimmed();
+}
+
+QString ConfigurationWindow::pluginDisplayName(const QString &pluginId) const
+{
+    const auto *plugin = m_plugins.value(pluginId, nullptr);
+    return plugin ? plugin->displayName() : pluginId;
+}
+
+void ConfigurationWindow::setupBindingEditorUi()
+{
+    if (!ui || !ui->rootLayout || m_bindingTable) {
+        return;
+    }
+
+    auto *container = new QFrame(this);
+    auto *layout = new QVBoxLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(6);
+
+    auto *title = new QLabel(tr("Component Type - TPS Plugin Mapping"), container);
+    layout->addWidget(title);
+
+    m_bindingTable = new QTableWidget(container);
+    m_bindingTable->setColumnCount(2);
+    m_bindingTable->setHorizontalHeaderLabels({tr("Component Type"), tr("TPS Plugin")});
+    m_bindingTable->horizontalHeader()->setStretchLastSection(true);
+    m_bindingTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_bindingTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    layout->addWidget(m_bindingTable);
+
+    auto *toolbar = new QHBoxLayout();
+    m_bindingAddButton = new QToolButton(container);
+    m_bindingAddButton->setText(tr("Add Type"));
+    m_bindingRemoveButton = new QToolButton(container);
+    m_bindingRemoveButton->setText(tr("Remove Type"));
+    toolbar->addWidget(m_bindingAddButton);
+    toolbar->addWidget(m_bindingRemoveButton);
+    toolbar->addStretch();
+    layout->addLayout(toolbar);
+
+    ui->rootLayout->insertWidget(1, container);
+
+    connect(m_bindingAddButton, &QToolButton::clicked, this, &ConfigurationWindow::onAddBindingType);
+    connect(m_bindingRemoveButton, &QToolButton::clicked, this, &ConfigurationWindow::onRemoveBindingType);
+    connect(m_bindingTable, &QTableWidget::cellChanged, this, &ConfigurationWindow::onBindingCellChanged);
+}
+
+void ConfigurationWindow::rebuildBindingEditorUi()
+{
+    if (!m_bindingTable) {
+        return;
+    }
+
+    m_updatingBindingEditor = true;
+    m_bindingTable->clearContents();
+    m_bindingTable->setRowCount(m_componentTypes.size());
+
+    for (int row = 0; row < m_componentTypes.size(); ++row) {
+        const QString typeName = m_componentTypes.at(row);
+        auto *typeItem = new QTableWidgetItem(typeName);
+        if (isBuiltInTypeName(typeName)) {
+            typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
+        }
+        m_bindingTable->setItem(row, 0, typeItem);
+
+        auto *pluginBox = new QComboBox(m_bindingTable);
+        pluginBox->addItem(tr("(None)"), QString());
+        for (auto it = m_plugins.begin(); it != m_plugins.end(); ++it) {
+            pluginBox->addItem(it.value()->displayName(), it.key());
+        }
+        const QString pluginId = m_componentPluginBindings.value(normalizedComponentType(typeName));
+        const int idx = pluginBox->findData(pluginId);
+        pluginBox->setCurrentIndex(idx >= 0 ? idx : 0);
+        m_bindingTable->setCellWidget(row, 1, pluginBox);
+        connect(pluginBox, qOverload<int>(&QComboBox::currentIndexChanged), this, [this, row](int) {
+            onBindingPluginChanged(row);
+        });
+    }
+    m_updatingBindingEditor = false;
+}
+
+bool ConfigurationWindow::persistBindingsFromEditor(QString *errorMessage)
+{
+    if (!m_bindingTable) {
+        return saveComponentBindings(errorMessage);
+    }
+
+    QStringList nextTypes;
+    QMap<QString, QString> nextBindings;
+    const QStringList fixedTypes = ComponentTypeRegistry::defaultTypes();
+
+    for (const QString &fixed : fixedTypes) {
+        if (!nextTypes.contains(fixed, Qt::CaseInsensitive)) {
+            nextTypes.push_back(fixed);
+        }
+    }
+
+    for (int row = 0; row < m_bindingTable->rowCount(); ++row) {
+        auto *typeItem = m_bindingTable->item(row, 0);
+        auto *pluginBox = qobject_cast<QComboBox *>(m_bindingTable->cellWidget(row, 1));
+        const QString typeName = typeItem ? typeItem->text().trimmed() : QString();
+        if (typeName.isEmpty()) {
+            continue;
+        }
+        if (!nextTypes.contains(typeName, Qt::CaseInsensitive)) {
+            nextTypes.push_back(typeName);
+        }
+        const QString pluginId = pluginBox ? pluginBox->currentData().toString().trimmed() : QString();
+        const QString key = normalizedComponentType(typeName);
+        if (!key.isEmpty() && !pluginId.isEmpty()) {
+            nextBindings.insert(key, pluginId);
+        }
+    }
+
+    m_componentTypes = nextTypes;
+    m_componentPluginBindings = nextBindings;
+    return saveComponentBindings(errorMessage);
+}
+
+bool ConfigurationWindow::isBuiltInTypeName(const QString &typeName) const
+{
+    return ComponentTypeRegistry::isBuiltInType(typeName);
+}
+
+void ConfigurationWindow::onAddBindingType()
+{
+    if (!m_bindingTable) {
+        return;
+    }
+    const int row = m_bindingTable->rowCount();
+    m_bindingTable->insertRow(row);
+    m_bindingTable->setItem(row, 0, new QTableWidgetItem());
+
+    auto *pluginBox = new QComboBox(m_bindingTable);
+    pluginBox->addItem(tr("(None)"), QString());
+    for (auto it = m_plugins.begin(); it != m_plugins.end(); ++it) {
+        pluginBox->addItem(it.value()->displayName(), it.key());
+    }
+    m_bindingTable->setCellWidget(row, 1, pluginBox);
+    connect(pluginBox, qOverload<int>(&QComboBox::currentIndexChanged), this, [this, row](int) {
+        onBindingPluginChanged(row);
+    });
+
+    m_bindingTable->setCurrentCell(row, 0);
+    m_bindingTable->editItem(m_bindingTable->item(row, 0));
+}
+
+void ConfigurationWindow::onRemoveBindingType()
+{
+    if (!m_bindingTable) {
+        return;
+    }
+    const int row = m_bindingTable->currentRow();
+    if (row < 0) {
+        return;
+    }
+    auto *typeItem = m_bindingTable->item(row, 0);
+    const QString typeName = typeItem ? typeItem->text().trimmed() : QString();
+    if (isBuiltInTypeName(typeName)) {
+        QMessageBox::information(this,
+                                 tr("Bindings"),
+                                 tr("Built-in component types cannot be removed."));
+        return;
+    }
+
+    m_bindingTable->removeRow(row);
+    QString error;
+    if (!persistBindingsFromEditor(&error)) {
+        QMessageBox::warning(this, tr("Bindings"), tr("Failed to save bindings: %1").arg(error));
+    }
+    rebuildBindingEditorUi();
+}
+
+void ConfigurationWindow::onBindingCellChanged(int row, int column)
+{
+    Q_UNUSED(column);
+    if (m_updatingBindingEditor || row < 0 || !m_bindingTable) {
+        return;
+    }
+
+    auto *typeItem = m_bindingTable->item(row, 0);
+    if (!typeItem) {
+        return;
+    }
+    const QString trimmed = typeItem->text().trimmed();
+    typeItem->setText(trimmed);
+    if (trimmed.isEmpty()) {
+        return;
+    }
+
+    QString error;
+    if (!persistBindingsFromEditor(&error)) {
+        QMessageBox::warning(this, tr("Bindings"), tr("Failed to save bindings: %1").arg(error));
+    }
+    rebuildBindingEditorUi();
+}
+
+void ConfigurationWindow::onBindingPluginChanged(int row)
+{
+    if (m_updatingBindingEditor || row < 0 || !m_bindingTable) {
+        return;
+    }
+    auto *typeItem = m_bindingTable->item(row, 0);
+    if (!typeItem || typeItem->text().trimmed().isEmpty()) {
+        return;
+    }
+    QString error;
+    if (!persistBindingsFromEditor(&error)) {
+        QMessageBox::warning(this, tr("Bindings"), tr("Failed to save bindings: %1").arg(error));
+    }
+}
+
+void ConfigurationWindow::onManageBindings()
+{
+    if (m_bindingTable) {
+        m_bindingTable->setFocus();
+    }
+}
+
 void ConfigurationWindow::refreshTable()
 {
-    if (!m_manager || !ui->sequenceTable) {
+    auto *table = sequenceTable(this);
+    if (!m_manager || !table) {
         return;
     }
 
     const auto items = m_manager->items();
-    ui->sequenceTable->setRowCount(items.size());
+    table->setRowCount(items.size());
 
     for (int row = 0; row < items.size(); ++row) {
         const auto &item = items.at(row);
         auto *refItem = new QTableWidgetItem(item.componentRef);
-        const auto *plugin = m_plugins.value(item.pluginId, nullptr);
-        const QString pluginName = plugin ? plugin->displayName() : item.pluginId;
+        auto *typeItem = new QTableWidgetItem(item.componentType);
+        const QString pluginName = pluginDisplayName(item.pluginId);
         auto *pluginItem = new QTableWidgetItem(pluginName);
-        ui->sequenceTable->setItem(row, 0, refItem);
-        ui->sequenceTable->setItem(row, 1, pluginItem);
+        table->setItem(row, 0, refItem);
+        table->setItem(row, 1, typeItem);
+        table->setItem(row, 2, pluginItem);
     }
 
     if (m_currentIndex >= 0 && m_currentIndex < items.size()) {
-        ui->sequenceTable->selectRow(m_currentIndex);
-        refreshDetail(m_currentIndex);
+        table->selectRow(m_currentIndex);
     } else {
-        clearDetail();
-    }
-}
-
-void ConfigurationWindow::refreshDetail(int index)
-{
-    if (!m_manager || !ui->labelDetailTitle || !ui->labelPluginName || !ui->labelComponentRef) {
-        return;
-    }
-
-    if (index < 0 || index >= m_manager->count()) {
-        clearDetail();
-        return;
-    }
-
-    m_currentIndex = index;
-    const auto item = m_manager->itemAt(index);
-    const auto *plugin = m_plugins.value(item.pluginId, nullptr);
-
-    ui->labelDetailTitle->setText(tr("测试参数"));
-    ui->labelComponentRef->setText(item.componentRef);
-    ui->labelPluginName->setText(plugin ? plugin->displayName() : item.pluginId);
-
-    if (!ui->paramFormLayout) {
-        return;
-    }
-
-    m_updatingDetail = true;
-    qDeleteAll(m_detailEditors);
-    m_detailEditors.clear();
-    while (ui->paramFormLayout->rowCount() > 0) {
-        ui->paramFormLayout->removeRow(0);
-    }
-
-    const auto defs = plugin ? plugin->parameterDefinitions() : QVector<TPSParamDefinition>();
-    for (const auto &def : defs) {
-        const QVariant value = item.parameters.value(def.key, def.defaultValue);
-        QWidget *editor = createParamEditor(def, value, ui->paramContainer);
-        m_detailEditors.insert(def.key, editor);
-        ui->paramFormLayout->addRow(def.label, editor);
-
-        if (auto *line = qobject_cast<QLineEdit *>(editor)) {
-            connect(line, &QLineEdit::editingFinished, this, [this, defs]() {
-                if (m_updatingDetail) return;
-                const auto params = collectParams(defs, m_detailEditors);
-                m_manager->updateParameters(m_currentIndex, params);
-            });
-        } else if (auto *spin = qobject_cast<QSpinBox *>(editor)) {
-            connect(spin, qOverload<int>(&QSpinBox::valueChanged), this, [this, defs](int) {
-                if (m_updatingDetail) return;
-                const auto params = collectParams(defs, m_detailEditors);
-                m_manager->updateParameters(m_currentIndex, params);
-            });
-        } else if (auto *dspin = qobject_cast<QDoubleSpinBox *>(editor)) {
-            connect(dspin, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this, defs](double) {
-                if (m_updatingDetail) return;
-                const auto params = collectParams(defs, m_detailEditors);
-                m_manager->updateParameters(m_currentIndex, params);
-            });
-        } else if (auto *check = qobject_cast<QCheckBox *>(editor)) {
-            connect(check, &QCheckBox::toggled, this, [this, defs](bool) {
-                if (m_updatingDetail) return;
-                const auto params = collectParams(defs, m_detailEditors);
-                m_manager->updateParameters(m_currentIndex, params);
-            });
-        } else if (auto *combo = qobject_cast<QComboBox *>(editor)) {
-            connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this, defs](int) {
-                if (m_updatingDetail) return;
-                const auto params = collectParams(defs, m_detailEditors);
-                m_manager->updateParameters(m_currentIndex, params);
-            });
-        }
-    }
-
-    m_updatingDetail = false;
-}
-
-void ConfigurationWindow::clearDetail()
-{
-    m_currentIndex = -1;
-    if (ui->labelDetailTitle) ui->labelDetailTitle->setText(tr("测试参数"));
-    if (ui->labelComponentRef) ui->labelComponentRef->setText(tr("-"));
-    if (ui->labelPluginName) ui->labelPluginName->setText(tr("-"));
-    if (ui->paramFormLayout) {
-        qDeleteAll(m_detailEditors);
-        m_detailEditors.clear();
-        while (ui->paramFormLayout->rowCount() > 0) {
-            ui->paramFormLayout->removeRow(0);
-        }
+        m_currentIndex = -1;
     }
 }
 
@@ -483,3 +730,4 @@ void ConfigurationWindow::applyThemeQss()
     }
     m_applyingQss = false;
 }
+

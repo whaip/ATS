@@ -24,6 +24,17 @@ void JYDataAligner::setExpectedKinds(const QSet<JYDeviceKind> &kinds)
     m_expected = kinds;
 }
 
+void JYDataAligner::setSyncAnchorMs(qint64 anchorMs)
+{
+    if (anchorMs <= 0) {
+        m_hasAnchor = false;
+        m_anchorTimeSeconds = 0.0;
+        return;
+    }
+    m_anchorTimeSeconds = toSeconds(anchorMs);
+    m_hasAnchor = true;
+}
+
 void JYDataAligner::ingest(const JYDataPacket &packet)
 {
     if (packet.sampleRateHz <= 0.0 || packet.samplesPerChannel <= 0) {

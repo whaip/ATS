@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>ConfigurationWindow</class>
  <widget class="QWidget" name="ConfigurationWindow">
@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>测试序列管理</string>
+   <string>Configuration</string>
   </property>
   <layout class="QVBoxLayout" name="rootLayout">
    <property name="spacing">
@@ -34,14 +34,14 @@
      <item>
       <widget class="QLabel" name="titleLabel">
        <property name="text">
-        <string>测试序列管理</string>
+        <string>Configuration</string>
        </property>
       </widget>
      </item>
      <item>
       <spacer name="headerSpacer">
        <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
+        <enum>Qt::Horizontal</enum>
        </property>
        <property name="sizeHint" stdset="0">
         <size>
@@ -51,164 +51,7 @@
        </property>
       </spacer>
      </item>
-     <item>
-      <widget class="QToolButton" name="btnAddItem">
-       <property name="text">
-        <string>新增元件</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QToolButton" name="btnRemoveItem">
-       <property name="text">
-        <string>删除元件</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QToolButton" name="btnImport">
-       <property name="text">
-        <string>加载序列</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QToolButton" name="btnExport">
-       <property name="text">
-        <string>导出序列</string>
-       </property>
-      </widget>
-     </item>
     </layout>
-   </item>
-   <item>
-    <widget class="QSplitter" name="mainSplitter">
-     <property name="orientation">
-      <enum>Qt::Orientation::Horizontal</enum>
-     </property>
-     <property name="handleWidth">
-      <number>6</number>
-     </property>
-     <widget class="QFrame" name="sequenceFrame">
-      <property name="frameShape">
-       <enum>QFrame::Shape::StyledPanel</enum>
-      </property>
-      <layout class="QVBoxLayout" name="sequenceLayout">
-       <item>
-        <widget class="QLabel" name="labelSequenceTitle">
-         <property name="text">
-          <string>被测元器件列表</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QTableWidget" name="sequenceTable">
-         <property name="alternatingRowColors">
-          <bool>true</bool>
-         </property>
-         <property name="selectionBehavior">
-          <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
-         </property>
-         <property name="selectionMode">
-          <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
-         </property>
-         <property name="rowCount">
-          <number>0</number>
-         </property>
-         <property name="columnCount">
-          <number>2</number>
-         </property>
-         <column>
-          <property name="text">
-           <string>元器件</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>插件</string>
-          </property>
-         </column>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QFrame" name="detailFrame">
-      <property name="frameShape">
-       <enum>QFrame::Shape::StyledPanel</enum>
-      </property>
-      <layout class="QVBoxLayout" name="detailLayout">
-       <item>
-        <widget class="QLabel" name="labelDetailTitle">
-         <property name="text">
-          <string>测试参数</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QFrame" name="detailInfoFrame">
-         <property name="frameShape">
-          <enum>QFrame::Shape::StyledPanel</enum>
-         </property>
-         <layout class="QGridLayout" name="detailInfoLayout">
-          <item row="0" column="0">
-           <widget class="QLabel" name="labelComponentTitle">
-            <property name="text">
-             <string>元器件</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QLabel" name="labelComponentRef">
-            <property name="text">
-             <string>-</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="labelPluginTitle">
-            <property name="text">
-             <string>插件</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QLabel" name="labelPluginName">
-            <property name="text">
-             <string>-</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <widget class="QScrollArea" name="paramScrollArea">
-         <property name="widgetResizable">
-          <bool>true</bool>
-         </property>
-         <widget class="QWidget" name="paramContainer">
-          <property name="geometry">
-           <rect>
-            <x>0</x>
-            <y>0</y>
-            <width>400</width>
-            <height>400</height>
-           </rect>
-          </property>
-          <layout class="QFormLayout" name="paramFormLayout">
-           <property name="horizontalSpacing">
-            <number>16</number>
-           </property>
-           <property name="verticalSpacing">
-            <number>12</number>
-           </property>
-          </layout>
-         </widget>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </widget>
    </item>
   </layout>
  </widget>

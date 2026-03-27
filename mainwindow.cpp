@@ -3,9 +3,9 @@
 #include "ui_mainwindow.h"
 #include "logger.h"
 #include "pagebuttonmanager.h"
+#include "componenttyperegistry.h"
 #include "HDCamera/hdcamera.h"
 #include "ComponentsDetect/componentsdetect.h"
-#include "tool/lebalitemmanager.h"
 #include "IODevices/DataCaptureCard/datacapturecard.h"
 #include "IRCamera/ircamera.h"
 #include "IODevices/DataGenerateCard/datageneratecard.h"
@@ -17,8 +17,19 @@
 #include <QDebug>
 #include "FaultDiagnostic/UI/faultdiagnostic.h"
 #include "FaultDiagnostic/UI/configurationwindow.h"
+#include "FaultDiagnostic/Core/testsequencemanager.h"
 #include "BoardManager/boardmanager.h"
 #include <QHeaderView>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QKeySequence>
+#include <QMessageBox>
+#include <QRegularExpression>
 #include <QStackedWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -27,12 +38,168 @@
 #include <QWidget>
 #include <algorithm>
 
+namespace {
+QString resolveTaskParamDbPath()
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    QStringList candidates;
+    candidates << QDir(appDir).filePath(QStringLiteral("board_db/i_params_db.json"));
+    candidates << QDir(appDir).filePath(QStringLiteral("build/release/board_db/i_params_db.json"));
+    candidates << QDir(appDir).filePath(QStringLiteral("build/debug/board_db/i_params_db.json"));
+    QDir probe(appDir);
+    for (int depth = 0; depth < 8; ++depth) {
+        candidates << probe.filePath(QStringLiteral("board_db/i_params_db.json"));
+        candidates << probe.filePath(QStringLiteral("build/release/board_db/i_params_db.json"));
+        candidates << probe.filePath(QStringLiteral("build/debug/board_db/i_params_db.json"));
+        if (!probe.cdUp()) {
+            break;
+        }
+    }
+
+    for (const QString &path : candidates) {
+        if (QFileInfo::exists(path)) {
+            return QDir::cleanPath(path);
+        }
+    }
+    return QDir::cleanPath(candidates.first());
+}
+
+QString normalizeComponentTypeKey(const QString &value)
+{
+    return ComponentTypeRegistry::normalizeTypeKey(value);
+}
+
+QMap<QString, QString> loadComponentPluginBindings()
+{
+    return ComponentTypeRegistry::load().bindings;
+}
+
+int componentIdFromLabel(const CompLabel &label)
+{
+    if (label.id > 0) {
+        return label.id;
+    }
+    const QRegularExpression re(QStringLiteral("(\\d+)$"));
+    const QRegularExpressionMatch match = re.match(label.position_number.trimmed());
+    if (!match.hasMatch()) {
+        return -1;
+    }
+    bool ok = false;
+    const int id = match.captured(1).toInt(&ok);
+    return ok ? id : -1;
+}
+
+QString componentRefFromLabel(const CompLabel &label)
+{
+    const QString ref = label.position_number.trimmed();
+    if (!ref.isEmpty()) {
+        return ref;
+    }
+    return label.id > 0 ? QString::number(label.id) : QStringLiteral("item");
+}
+
+QString pluginIdForComponentTypeText(const QString &componentType)
+{
+    if (componentType.trimmed().isEmpty()) {
+        return {};
+    }
+    return loadComponentPluginBindings().value(normalizeComponentTypeKey(componentType)).trimmed();
+}
+
+QString componentTypeNameForLabel(const CompLabel &label)
+{
+    const ComponentTypeRegistryData data = ComponentTypeRegistry::load();
+    return ComponentTypeRegistry::typeNameFromClassId(label.cls, data);
+}
+
+QString resolvePluginIdForLabel(const CompLabel &label,
+                                const QString &dbPluginId,
+                                const QString &dbComponentType)
+{
+    Q_UNUSED(dbPluginId);
+
+    const QString byDbType = pluginIdForComponentTypeText(dbComponentType);
+    if (!byDbType.isEmpty()) {
+        return byDbType;
+    }
+    return pluginIdForComponentTypeText(componentTypeNameForLabel(label));
+}
+
+
+struct DbTaskEntry {
+    QString pluginId;
+    QString componentType;
+    QMap<QString, QVariant> parameters;
+};
+
+DbTaskEntry loadDbTaskEntry(const QString &dbPath, const QString &boardId, int componentId)
+{
+    DbTaskEntry entry;
+    if (componentId < 0) {
+        return entry;
+    }
+
+    QFile file(dbPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return entry;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        return entry;
+    }
+
+    const QJsonArray items = doc.object().value(QStringLiteral("items")).toArray();
+    int bestScore = -1;
+    QJsonObject matched;
+    for (const QJsonValue &value : items) {
+        if (!value.isObject()) {
+            continue;
+        }
+        const QJsonObject item = value.toObject();
+        if (item.value(QStringLiteral("componentId")).toInt(-1) != componentId) {
+            continue;
+        }
+        int score = 10;
+        if (!boardId.trimmed().isEmpty() && item.value(QStringLiteral("boardId")).toString() == boardId) {
+            score += 3;
+        }
+        if (!item.value(QStringLiteral("pluginId")).toString().trimmed().isEmpty()) {
+            score += 1;
+        }
+        if (score > bestScore) {
+            bestScore = score;
+            matched = item;
+        }
+    }
+
+    entry.pluginId = matched.value(QStringLiteral("pluginId")).toString();
+    entry.componentType = matched.value(QStringLiteral("componentType")).toString();
+    const QJsonObject params = matched.value(QStringLiteral("parameters")).toObject();
+    for (auto it = params.begin(); it != params.end(); ++it) {
+        entry.parameters.insert(it.key(), it.value().toVariant());
+    }
+    return entry;
+}
+}
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    if (qApp) {
+        connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+            IRCameraStation::instance()->stop();
+            if (m_faultDiagnosticPage && m_faultDiagnosticPage->runtime() && m_faultDiagnosticPage->runtime()->rts()) {
+                QString err;
+                m_faultDiagnosticPage->runtime()->rts()->abortRun(&err);
+            }
+        });
+    }
 
     m_jyManager = new JYThreadManager(this);
 
@@ -82,13 +249,13 @@ MainWindow::MainWindow(QWidget *parent)
                                || (s5323 == JYDeviceState::Configured || s5323 == JYDeviceState::Armed || s5323 == JYDeviceState::Running)
                                || (s8902 == JYDeviceState::Configured || s8902 == JYDeviceState::Armed || s8902 == JYDeviceState::Running);
 
-        QString text = QStringLiteral("未初始化");
+        QString text = QStringLiteral("Not initialized");
         if (anyFault) {
-            text = QStringLiteral("初始化失败");
+            text = QStringLiteral("Initialization failed");
         } else if (allInited) {
-            text = QStringLiteral("已初始化");
+            text = QStringLiteral("Initialized");
         } else if (anyInited) {
-            text = QStringLiteral("部分初始化");
+            text = QStringLiteral("Partially initialized");
         }
         ui->labelOverviewStatus->setText(text);
     };
@@ -96,17 +263,17 @@ MainWindow::MainWindow(QWidget *parent)
     auto updateDeviceStatus = [this, statusLabelForKind, updateOverview](JYDeviceKind kind, JYDeviceState state, const QString &message) {
         m_jyStates[kind] = state;
         if (auto *label = statusLabelForKind(kind)) {
-            QString text = QStringLiteral("状态：未初始化");
+            QString text = QStringLiteral("Status: Not initialized");
             if (state == JYDeviceState::Faulted) {
                 text = message.isEmpty()
-                           ? QStringLiteral("状态：初始化失败")
-                           : QStringLiteral("状态：初始化失败(%1)").arg(message);
+                           ? QStringLiteral("Status: Initialization failed")
+                           : QStringLiteral("Status: Initialization failed (%1)").arg(message);
             } else if (state == JYDeviceState::Configured || state == JYDeviceState::Armed || state == JYDeviceState::Running) {
-                text = QStringLiteral("状态：已初始化");
+                text = QStringLiteral("Status: Initialized");
             } else if (state == JYDeviceState::Closed) {
-                text = QStringLiteral("状态：未初始化");
+                text = QStringLiteral("Status: Not initialized");
             } else {
-                text = QStringLiteral("状态：初始化中");
+                text = QStringLiteral("Status: Initializing");
             }
             label->setText(text);
         }
@@ -194,11 +361,11 @@ MainWindow::MainWindow(QWidget *parent)
             }
         }
         if (anyFault) {
-            ui->labelOverviewStatus->setText(QStringLiteral("初始化失败"));
+            ui->labelOverviewStatus->setText(QStringLiteral("Initialization failed"));
         } else if (allInit) {
-            ui->labelOverviewStatus->setText(QStringLiteral("已初始化"));
+            ui->labelOverviewStatus->setText(QStringLiteral("Initialized"));
         } else {
-            ui->labelOverviewStatus->setText(QStringLiteral("未初始化"));
+            ui->labelOverviewStatus->setText(QStringLiteral("Not initialized"));
         }
     };
 
@@ -236,7 +403,7 @@ MainWindow::MainWindow(QWidget *parent)
         connect(worker, &JYDeviceWorker::statusChanged, this,
                 [this, label, kind, updateOverviewStatus](JYDeviceKind, JYDeviceState state, const QString &message) {
                     m_jyStates[kind] = state;
-                    label->setText(QStringLiteral("状态：%1").arg(jyDeviceStateText(state, message)));
+                    label->setText(QStringLiteral("Status: %1").arg(jyDeviceStateText(state, message)));
                     updateOverviewStatus();
                 });
     };
@@ -246,7 +413,7 @@ MainWindow::MainWindow(QWidget *parent)
         ui->pagesStack->setCurrentIndex(0);
 
         if (ui->labelPageInfo) {
-            ui->labelPageInfo->setText(QStringLiteral("共%1页").arg(ui->pagesStack->count()));
+            ui->labelPageInfo->setText(QStringLiteral("Total %1 pages").arg(ui->pagesStack->count()));
         }
 
         connect(ui->btnPagePrev, &QToolButton::clicked, this, [this]() {
@@ -282,32 +449,18 @@ MainWindow::MainWindow(QWidget *parent)
             ui->pagesStack->setCurrentIndex(idx);
 
             if (ui->labelPageInfo) {
-                ui->labelPageInfo->setText(QStringLiteral("共%1页").arg(ui->pagesStack->count()));
+                ui->labelPageInfo->setText(QStringLiteral("Total %1 pages").arg(ui->pagesStack->count()));
             }
         });
     }
 
     if (ui->pagesStack) {
-        addPage(new HDCamera(), QStringLiteral("摄像头控制"), false);
-        addPage(new ComponentsDetect(), QStringLiteral("元器件识别"), false);
+        addPage(new HDCamera(), QStringLiteral("Camera"), false);
+        m_componentsDetectPage = new ComponentsDetect();
+        m_componentsDetectPageIndex = addPage(m_componentsDetectPage, QStringLiteral("Component Detect"), false);
         if (ui->labelPageInfo) {
-            ui->labelPageInfo->setText(QStringLiteral("共%1页").arg(ui->pagesStack->count()));
+            ui->labelPageInfo->setText(QStringLiteral("Total %1 pages").arg(ui->pagesStack->count()));
         }
-    }
-
-    if (ui->navMaintain) {
-        connect(ui->navMaintain, &QToolButton::clicked, this, [this]() {
-            if (!ui || !ui->pagesStack) {
-                return;
-            }
-            if (!m_maintainPage) {
-                m_maintainPage = new LebalItemManager();
-                m_maintainPageIndex = addPage(m_maintainPage, QStringLiteral("Maintain"), false);
-            }
-            if (m_maintainPageIndex >= 0 && m_maintainPageIndex < ui->pagesStack->count()) {
-                ui->pagesStack->setCurrentIndex(m_maintainPageIndex);
-            }
-        });
     }
 
     if (ui->navSetting) {
@@ -318,6 +471,81 @@ MainWindow::MainWindow(QWidget *parent)
             if (!m_configurationPage) {
                 m_configurationPage = new ConfigurationWindow();
                 m_configurationPageIndex = addPage(m_configurationPage, QStringLiteral("TestSequence"), false);
+
+                connect(m_configurationPage, &ConfigurationWindow::startTestRequested, this,
+                        [this](int index) {
+                            if (!ui || !ui->pagesStack) {
+                                return;
+                            }
+                            if (!m_faultDiagnosticPage) {
+                                m_faultDiagnosticPage = new FaultDiagnostic();
+                                m_faultDiagnosticPageIndex = addPage(m_faultDiagnosticPage, QStringLiteral("FaultDiagnostic"), false);
+                            }
+
+                            QVector<FaultDiagnostic::ComponentViewData> components;
+                            auto *manager = m_configurationPage ? m_configurationPage->sequenceManager() : nullptr;
+                            if (manager) {
+                                const auto items = manager->items();
+                                components.reserve(items.size());
+                                for (int i = 0; i < items.size(); ++i) {
+                                    const auto &item = items.at(i);
+                                    FaultDiagnostic::ComponentViewData view;
+                                    const QString ref = item.componentRef.trimmed().isEmpty()
+                                        ? QStringLiteral("item_%1").arg(i + 1)
+                                        : item.componentRef.trimmed();
+                                    view.id = ref;
+                                    view.name = ref;
+                                    components.push_back(view);
+                                }
+                            }
+
+                            if (m_faultDiagnosticPage) {
+                                m_faultDiagnosticPage->setComponents(components);
+                                if (index >= 0 && index < components.size()) {
+                                    m_faultDiagnosticPage->selectComponentById(components[index].id);
+                                }
+                            }
+
+                            if (m_faultDiagnosticPageIndex >= 0 && m_faultDiagnosticPageIndex < ui->pagesStack->count()) {
+                                ui->pagesStack->setCurrentIndex(m_faultDiagnosticPageIndex);
+                            }
+
+                            QVector<FaultDiagnostic::TestTask> tasks;
+                            QStringList unboundRefs;
+                            if (manager) {
+                                const auto items = manager->items();
+                                tasks.reserve(items.size());
+                                for (const auto &item : items) {
+                                    FaultDiagnostic::TestTask task;
+                                    task.componentRef = item.componentRef;
+                                    task.pluginId = pluginIdForComponentTypeText(item.componentType);
+                                    if (task.pluginId.isEmpty()) {
+                                        unboundRefs.push_back(item.componentRef.trimmed().isEmpty()
+                                                                  ? QStringLiteral("item")
+                                                                  : item.componentRef.trimmed());
+                                        continue;
+                                    }
+                                    task.parameters = item.parameters;
+                                    tasks.push_back(task);
+                                }
+                            }
+
+                            if (!unboundRefs.isEmpty()) {
+                                QMessageBox::warning(this,
+                                                     QStringLiteral("Bindings"),
+                                                     QStringLiteral("Missing type-plugin binding for: %1")
+                                                         .arg(unboundRefs.join(QStringLiteral(", "))));
+                                return;
+                            }
+
+                            if (m_faultDiagnosticPage) {
+                                if (!tasks.isEmpty()) {
+                                    m_faultDiagnosticPage->startBatchTest(tasks);
+                                } else {
+                                    m_faultDiagnosticPage->startTest();
+                                }
+                            }
+                        });
             }
             if (m_configurationPageIndex >= 0 && m_configurationPageIndex < ui->pagesStack->count()) {
                 ui->pagesStack->setCurrentIndex(m_configurationPageIndex);
@@ -496,6 +724,72 @@ MainWindow::MainWindow(QWidget *parent)
             if (!m_boardManagerPage) {
                 m_boardManagerPage = new BoardManager();
                 m_boardManagerPageIndex = addPage(m_boardManagerPage, QStringLiteral("BoardManager"), false);
+
+                connect(m_boardManagerPage, &BoardManager::testRequested, this,
+                    [this](const QString &boardId,
+                           const QList<CompLabel> &selectedLabels,
+                           const QList<CompLabel> &allLabels,
+                           const QImage &boardImage) {
+                            if (!ui || !ui->pagesStack || selectedLabels.isEmpty()) {
+                                return;
+                            }
+                            if (!m_faultDiagnosticPage) {
+                                m_faultDiagnosticPage = new FaultDiagnostic();
+                                m_faultDiagnosticPageIndex = addPage(m_faultDiagnosticPage, QStringLiteral("FaultDiagnostic"), false);
+                            }
+
+                            const QString dbPath = resolveTaskParamDbPath();
+                            QVector<FaultDiagnostic::ComponentViewData> components;
+                            QVector<FaultDiagnostic::TestTask> tasks;
+                            QSet<QString> seenRefs;
+                            components.reserve(selectedLabels.size());
+                            tasks.reserve(selectedLabels.size());
+
+                            for (const CompLabel &label : selectedLabels) {
+                                const QString ref = componentRefFromLabel(label);
+                                if (seenRefs.contains(ref)) {
+                                    continue;
+                                }
+                                seenRefs.insert(ref);
+
+                                const int componentId = componentIdFromLabel(label);
+                                const DbTaskEntry dbEntry = loadDbTaskEntry(dbPath, boardId, componentId);
+
+                                FaultDiagnostic::ComponentViewData view;
+                                view.id = ref;
+                                view.name = ref;
+                                components.push_back(view);
+
+                                FaultDiagnostic::TestTask task;
+                                task.componentRef = ref;
+                                task.pluginId = resolvePluginIdForLabel(label,
+                                                                       dbEntry.pluginId,
+                                                                       dbEntry.componentType);
+                                if (task.pluginId.isEmpty()) {
+                                    QMessageBox::warning(this,
+                                                         QStringLiteral("Bindings"),
+                                                         QStringLiteral("Missing type-plugin binding for component: %1").arg(ref));
+                                    return;
+                                }
+                                task.parameters = dbEntry.parameters;
+                                tasks.push_back(task);
+                            }
+
+                            if (components.isEmpty() || tasks.isEmpty()) {
+                                return;
+                            }
+
+                            m_faultDiagnosticPage->setComponents(components);
+                            m_faultDiagnosticPage->setGuidanceLabels(allLabels.isEmpty() ? selectedLabels : allLabels);
+                            m_faultDiagnosticPage->setGuidanceImage(boardImage);
+                            m_faultDiagnosticPage->selectComponentById(components.first().id);
+
+                            if (m_faultDiagnosticPageIndex >= 0 && m_faultDiagnosticPageIndex < ui->pagesStack->count()) {
+                                ui->pagesStack->setCurrentIndex(m_faultDiagnosticPageIndex);
+                            }
+
+                            m_faultDiagnosticPage->startBatchTest(tasks);
+                        });
             }
             if (m_boardManagerPageIndex >= 0 && m_boardManagerPageIndex < ui->pagesStack->count()) {
                 ui->pagesStack->setCurrentIndex(m_boardManagerPageIndex);
@@ -513,7 +807,7 @@ MainWindow::MainWindow(QWidget *parent)
                 attachWorker(worker);
             }
             if (ui && ui->labelJY5711Status) {
-                ui->labelJY5711Status->setText(QStringLiteral("状态：初始化中"));
+                ui->labelJY5711Status->setText(QStringLiteral("鐘舵€侊細鍒濆鍖栦腑"));
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe5711, nullptr)) {
                 worker->postConfigure(build5711Config());
@@ -531,7 +825,7 @@ MainWindow::MainWindow(QWidget *parent)
                 attachWorker(worker);
             }
             if (ui && ui->labelJY5322Status) {
-                ui->labelJY5322Status->setText(QStringLiteral("状态：初始化中"));
+                ui->labelJY5322Status->setText(QStringLiteral("鐘舵€侊細鍒濆鍖栦腑"));
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe5322, nullptr)) {
                 worker->postConfigure(build532xConfig(JYDeviceKind::PXIe5322, 16));
@@ -549,7 +843,7 @@ MainWindow::MainWindow(QWidget *parent)
                 attachWorker(worker);
             }
             if (ui && ui->labelJY5323Status) {
-                ui->labelJY5323Status->setText(QStringLiteral("状态：初始化中"));
+                ui->labelJY5323Status->setText(QStringLiteral("鐘舵€侊細鍒濆鍖栦腑"));
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe5323, nullptr)) {
                 worker->postConfigure(build532xConfig(JYDeviceKind::PXIe5323, 32));
@@ -567,7 +861,7 @@ MainWindow::MainWindow(QWidget *parent)
                 attachWorker(worker);
             }
             if (ui && ui->labelJY8902Status) {
-                ui->labelJY8902Status->setText(QStringLiteral("状态：初始化中"));
+                ui->labelJY8902Status->setText(QStringLiteral("鐘舵€侊細鍒濆鍖栦腑"));
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe8902, nullptr)) {
                 worker->postConfigure(build8902Config());
@@ -603,8 +897,8 @@ MainWindow::MainWindow(QWidget *parent)
             m_irStationRunning = IRCameraStation::instance()->isRunning();
             if (ui->labelInfraredStatus) {
                 ui->labelInfraredStatus->setText(m_irStationRunning
-                                                  ? QStringLiteral("状态：运行中")
-                                                  : QStringLiteral("状态：初始化失败"));
+                                                  ? QStringLiteral("Status: Running")
+                                                  : QStringLiteral("Status: Initialization failed"));
             }
             if (m_irCameraPage) {
                 m_irCameraPage->setStationEnabled(m_irStationRunning);
@@ -619,13 +913,128 @@ MainWindow::MainWindow(QWidget *parent)
             }
             QString status = text;
             if (text.contains(QStringLiteral("started"), Qt::CaseInsensitive)) {
-                status = QStringLiteral("运行中");
+                status = QStringLiteral("Running");
             } else if (text.contains(QStringLiteral("stopped"), Qt::CaseInsensitive)) {
-                status = QStringLiteral("已停止");
+                status = QStringLiteral("Stopped");
             } else if (text.contains(QStringLiteral("failed"), Qt::CaseInsensitive)) {
-                status = QStringLiteral("初始化失败");
+                status = QStringLiteral("Initialization failed");
             }
-            ui->labelInfraredStatus->setText(QStringLiteral("状态：%1").arg(status));
+            ui->labelInfraredStatus->setText(QStringLiteral("Status: %1").arg(status));
+        });
+    }
+
+    if (ui->actionl) {
+        ui->actionl->setShortcut(QKeySequence(QStringLiteral("Ctrl+1")));
+        connect(ui->actionl, &QAction::triggered, this, [this]() {
+            if (ui && ui->navSetting) {
+                ui->navSetting->click();
+            }
+        });
+    }
+
+    if (ui->actiong) {
+        ui->actiong->setShortcut(QKeySequence(QStringLiteral("Ctrl+2")));
+        connect(ui->actiong, &QAction::triggered, this, [this]() {
+            if (ui && ui->FaultDiagnostic) {
+                ui->FaultDiagnostic->click();
+            }
+        });
+    }
+
+    if (ui->actiong_2) {
+        ui->actiong_2->setShortcut(QKeySequence(QStringLiteral("Ctrl+5")));
+        connect(ui->actiong_2, &QAction::triggered, this, [this]() {
+            if (!ui || !ui->pagesStack) {
+                return;
+            }
+            if (m_componentsDetectPageIndex >= 0 && m_componentsDetectPageIndex < ui->pagesStack->count()) {
+                ui->pagesStack->setCurrentIndex(m_componentsDetectPageIndex);
+            }
+        });
+    }
+
+    if (ui->actionsss) {
+        ui->actionsss->setShortcut(QKeySequence(QStringLiteral("Ctrl+3")));
+        connect(ui->actionsss, &QAction::triggered, this, [this]() {
+            if (ui && ui->tabBoardManager) {
+                ui->tabBoardManager->click();
+            }
+        });
+    }
+
+    if (ui->actionlll) {
+        ui->actionlll->setShortcut(QKeySequence::Quit);
+        connect(ui->actionlll, &QAction::triggered, this, &QWidget::close);
+    }
+
+    if (ui->actionf) {
+        connect(ui->actionf, &QAction::triggered, this, [this]() {
+            if (ui && ui->btnInitJY5711) {
+                ui->btnInitJY5711->click();
+            }
+        });
+    }
+
+    if (ui->actionf_2) {
+        connect(ui->actionf_2, &QAction::triggered, this, [this]() {
+            if (ui && ui->btnInitJY5322) {
+                ui->btnInitJY5322->click();
+            }
+        });
+    }
+
+    if (ui->actionf_3) {
+        connect(ui->actionf_3, &QAction::triggered, this, [this]() {
+            if (ui && ui->btnInitJY5323) {
+                ui->btnInitJY5323->click();
+            }
+        });
+    }
+
+    if (ui->actionf_4) {
+        connect(ui->actionf_4, &QAction::triggered, this, [this]() {
+            if (ui && ui->btnInitJY8902) {
+                ui->btnInitJY8902->click();
+            }
+        });
+    }
+
+    if (ui->actionInitInfrared) {
+        connect(ui->actionInitInfrared, &QAction::triggered, this, [this]() {
+            if (ui && ui->btnInitInfrared) {
+                ui->btnInitInfrared->click();
+            }
+        });
+    }
+
+    if (ui->actionxiangji) {
+        ui->actionxiangji->setShortcut(QKeySequence(QStringLiteral("Ctrl+4")));
+        connect(ui->actionxiangji, &QAction::triggered, this, [openIrCameraPage]() {
+            openIrCameraPage();
+        });
+    }
+
+    if (ui->actionpcb) {
+        connect(ui->actionpcb, &QAction::triggered, this, [this]() {
+            if (ui && ui->btnDataCaptureCard) {
+                ui->btnDataCaptureCard->click();
+            }
+        });
+    }
+
+    if (ui->actionpcb_2) {
+        connect(ui->actionpcb_2, &QAction::triggered, this, [this]() {
+            if (ui && ui->btnDataGenerateCard) {
+                ui->btnDataGenerateCard->click();
+            }
+        });
+    }
+
+    if (ui->actionguanyu) {
+        connect(ui->actionguanyu, &QAction::triggered, this, [this]() {
+            QMessageBox::about(this,
+                               QStringLiteral("About ATS"),
+                               QStringLiteral("ATS Fault Detect\n\nMenu shortcuts now mirror the main navigation and device initialization actions."));
         });
     }
 
@@ -680,7 +1089,7 @@ int MainWindow::addPage(QWidget *page, const QString &pageName, bool switchToPag
     }
 
     if (ui->labelPageInfo) {
-        ui->labelPageInfo->setText(QStringLiteral("共%1页").arg(ui->pagesStack->count()));
+        ui->labelPageInfo->setText(QStringLiteral("Total %1 pages").arg(ui->pagesStack->count()));
     }
 
     if (m_pageButtonManager) {
@@ -695,3 +1104,4 @@ int MainWindow::addEmptyPage(const QString &pageName, bool switchToPage)
     auto *page = new QWidget();
     return addPage(page, pageName, switchToPage);
 }
+

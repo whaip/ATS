@@ -19,6 +19,7 @@ public:
 
     void setSettings(const Settings &settings);
     void setExpectedKinds(const QSet<JYDeviceKind> &kinds);
+    void setSyncAnchorMs(qint64 anchorMs);
 
 public slots:
     void ingest(const JYDataPacket &packet);

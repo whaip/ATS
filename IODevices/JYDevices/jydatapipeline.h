@@ -14,6 +14,7 @@ public:
 
     void setExpectedKinds(const QSet<JYDeviceKind> &kinds);
     void setAlignSettings(const JYDataAligner::Settings &settings);
+    void setSyncAnchorMs(qint64 anchorMs);
 
 public slots:
     void ingest(const JYDataPacket &packet);
@@ -22,6 +23,7 @@ signals:
     void alignedBatchReady(const JYAlignedBatch &batch);
     void packetRejected(JYDeviceKind kind, const QString &reason);
     void packetIngested(JYDeviceKind kind, int channelCount, int dataSize, qint64 timestampMs);
+    void packetReady(const JYDataPacket &packet);
 
 private:
     bool validate(const JYDataPacket &packet, QString *reason) const;
