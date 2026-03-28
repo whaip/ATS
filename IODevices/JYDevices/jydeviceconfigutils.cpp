@@ -3,16 +3,16 @@
 QString jyDeviceStateText(JYDeviceState state, const QString &message)
 {
     switch (state) {
-        case JYDeviceState::Configured:
-        case JYDeviceState::Armed:
-            return QStringLiteral("已初始化");
-        case JYDeviceState::Running:
-            return QStringLiteral("运行中");
-        case JYDeviceState::Faulted:
-            return message.isEmpty() ? QStringLiteral("初始化失败") : message;
-        case JYDeviceState::Closed:
-        default:
-            return QStringLiteral("未初始化");
+    case JYDeviceState::Configured:
+    case JYDeviceState::Armed:
+        return QStringLiteral("已初始化");
+    case JYDeviceState::Running:
+        return QStringLiteral("运行中");
+    case JYDeviceState::Faulted:
+        return message.isEmpty() ? QStringLiteral("初始化失败") : message;
+    case JYDeviceState::Closed:
+    default:
+        return QStringLiteral("未初始化");
     }
 }
 

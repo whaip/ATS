@@ -131,6 +131,7 @@ public:
                   int timeoutMs,
                   QString *error);
     bool pauseRun(int timeoutMs, QString *error);
+    bool completeRun(int timeoutMs, QString *error);
     bool resumeRun(int timeoutMs, QString *error);
     bool abortRun(QString *error);
 

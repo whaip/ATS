@@ -429,7 +429,8 @@ private:
             }
             double amplitude = cfg.amplitude;
             if (cfg.type == PXIe5711_testtype::HighLevelWave || cfg.type == PXIe5711_testtype::LowLevelWave) {
-                amplitude = 0.201 * amplitude - 0.01107;  //调理板卡转换
+                // amplitude = 0.201 * amplitude - 0.01107;  //调理板卡转换
+                amplitude =  amplitude;  //先不用调理板卡转换，直接用实际电压值，后续如果需要再加上转换
             }
             waveforms[static_cast<size_t>(cfg.channel)] =
                 PXIe5711_create_waveform(cfg.type,

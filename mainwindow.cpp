@@ -1,4 +1,4 @@
-#include "mainwindow.h"
+﻿#include "mainwindow.h"
 #include "logger.h"
 #include "ui_mainwindow.h"
 #include "logger.h"
@@ -39,6 +39,52 @@
 #include <algorithm>
 
 namespace {
+QString initSummaryText(bool anyFault, bool allInited, bool anyInited)
+{
+    if (anyFault) {
+        return QStringLiteral("初始化失败");
+    }
+    if (allInited) {
+        return QStringLiteral("已初始化");
+    }
+    if (anyInited) {
+        return QStringLiteral("部分初始化");
+    }
+    return QStringLiteral("未初始化");
+}
+
+QString initStatusText(JYDeviceState state, const QString &message)
+{
+    if (state == JYDeviceState::Faulted) {
+        return message.isEmpty()
+            ? QStringLiteral("状态：初始化失败")
+            : QStringLiteral("状态：初始化失败（%1）").arg(message);
+    }
+    if (state == JYDeviceState::Configured
+        || state == JYDeviceState::Armed
+        || state == JYDeviceState::Running) {
+        return QStringLiteral("状态：已初始化");
+    }
+    if (state == JYDeviceState::Closed) {
+        return QStringLiteral("状态：未初始化");
+    }
+    return QStringLiteral("状态：初始化中");
+}
+
+QString chineseInfraredStatus(const QString &text)
+{
+    if (text.contains(QStringLiteral("started"), Qt::CaseInsensitive)) {
+        return QStringLiteral("运行中");
+    }
+    if (text.contains(QStringLiteral("stopped"), Qt::CaseInsensitive)) {
+        return QStringLiteral("已停止");
+    }
+    if (text.contains(QStringLiteral("failed"), Qt::CaseInsensitive)) {
+        return QStringLiteral("初始化失败");
+    }
+    return text;
+}
+
 QString resolveTaskParamDbPath()
 {
     const QString appDir = QCoreApplication::applicationDirPath();
@@ -249,36 +295,23 @@ MainWindow::MainWindow(QWidget *parent)
                                || (s5323 == JYDeviceState::Configured || s5323 == JYDeviceState::Armed || s5323 == JYDeviceState::Running)
                                || (s8902 == JYDeviceState::Configured || s8902 == JYDeviceState::Armed || s8902 == JYDeviceState::Running);
 
-        QString text = QStringLiteral("Not initialized");
-        if (anyFault) {
-            text = QStringLiteral("Initialization failed");
-        } else if (allInited) {
-            text = QStringLiteral("Initialized");
-        } else if (anyInited) {
-            text = QStringLiteral("Partially initialized");
-        }
-        ui->labelOverviewStatus->setText(text);
+        ui->labelOverviewStatus->setText(initSummaryText(anyFault, allInited, anyInited));
     };
 
     auto updateDeviceStatus = [this, statusLabelForKind, updateOverview](JYDeviceKind kind, JYDeviceState state, const QString &message) {
         m_jyStates[kind] = state;
         if (auto *label = statusLabelForKind(kind)) {
-            QString text = QStringLiteral("Status: Not initialized");
-            if (state == JYDeviceState::Faulted) {
-                text = message.isEmpty()
-                           ? QStringLiteral("Status: Initialization failed")
-                           : QStringLiteral("Status: Initialization failed (%1)").arg(message);
-            } else if (state == JYDeviceState::Configured || state == JYDeviceState::Armed || state == JYDeviceState::Running) {
-                text = QStringLiteral("Status: Initialized");
-            } else if (state == JYDeviceState::Closed) {
-                text = QStringLiteral("Status: Not initialized");
-            } else {
-                text = QStringLiteral("Status: Initializing");
-            }
-            label->setText(text);
+            label->setText(initStatusText(state, message));
         }
         updateOverview();
     };
+
+    if (m_jyManager) {
+        connect(m_jyManager, &JYThreadManager::deviceStatusChanged, this,
+                [this, updateDeviceStatus](JYDeviceKind kind, JYDeviceState state, const QString &message) {
+                    updateDeviceStatus(kind, state, message);
+                });
+    }
 
     auto attachWorker = [this, updateDeviceStatus](JYDeviceWorker *worker) {
         if (!worker) {
@@ -361,11 +394,11 @@ MainWindow::MainWindow(QWidget *parent)
             }
         }
         if (anyFault) {
-            ui->labelOverviewStatus->setText(QStringLiteral("Initialization failed"));
+            ui->labelOverviewStatus->setText(QStringLiteral("初始化失败"));
         } else if (allInit) {
-            ui->labelOverviewStatus->setText(QStringLiteral("Initialized"));
+            ui->labelOverviewStatus->setText(QStringLiteral("已初始化"));
         } else {
-            ui->labelOverviewStatus->setText(QStringLiteral("Not initialized"));
+            ui->labelOverviewStatus->setText(QStringLiteral("部分初始化"));
         }
     };
 
@@ -403,7 +436,7 @@ MainWindow::MainWindow(QWidget *parent)
         connect(worker, &JYDeviceWorker::statusChanged, this,
                 [this, label, kind, updateOverviewStatus](JYDeviceKind, JYDeviceState state, const QString &message) {
                     m_jyStates[kind] = state;
-                    label->setText(QStringLiteral("Status: %1").arg(jyDeviceStateText(state, message)));
+                    label->setText(QStringLiteral("设备状态%1").arg(jyDeviceStateText(state, message)));
                     updateOverviewStatus();
                 });
     };
@@ -413,7 +446,7 @@ MainWindow::MainWindow(QWidget *parent)
         ui->pagesStack->setCurrentIndex(0);
 
         if (ui->labelPageInfo) {
-            ui->labelPageInfo->setText(QStringLiteral("Total %1 pages").arg(ui->pagesStack->count()));
+            ui->labelPageInfo->setText(QStringLiteral("共 %1 页").arg(ui->pagesStack->count()));
         }
 
         connect(ui->btnPagePrev, &QToolButton::clicked, this, [this]() {
@@ -449,17 +482,17 @@ MainWindow::MainWindow(QWidget *parent)
             ui->pagesStack->setCurrentIndex(idx);
 
             if (ui->labelPageInfo) {
-                ui->labelPageInfo->setText(QStringLiteral("Total %1 pages").arg(ui->pagesStack->count()));
+                ui->labelPageInfo->setText(QStringLiteral("共 %1 页").arg(ui->pagesStack->count()));
             }
         });
     }
 
     if (ui->pagesStack) {
-        addPage(new HDCamera(), QStringLiteral("Camera"), false);
+        addPage(new HDCamera(), QStringLiteral("相机"), false);
         m_componentsDetectPage = new ComponentsDetect();
-        m_componentsDetectPageIndex = addPage(m_componentsDetectPage, QStringLiteral("Component Detect"), false);
+        m_componentsDetectPageIndex = addPage(m_componentsDetectPage, QStringLiteral("元器件检测"), false);
         if (ui->labelPageInfo) {
-            ui->labelPageInfo->setText(QStringLiteral("Total %1 pages").arg(ui->pagesStack->count()));
+            ui->labelPageInfo->setText(QStringLiteral("共 %1 页").arg(ui->pagesStack->count()));
         }
     }
 
@@ -470,7 +503,7 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (!m_configurationPage) {
                 m_configurationPage = new ConfigurationWindow();
-                m_configurationPageIndex = addPage(m_configurationPage, QStringLiteral("TestSequence"), false);
+                m_configurationPageIndex = addPage(m_configurationPage, QStringLiteral("元件-插件管理"), false);
 
                 connect(m_configurationPage, &ConfigurationWindow::startTestRequested, this,
                         [this](int index) {
@@ -479,7 +512,8 @@ MainWindow::MainWindow(QWidget *parent)
                             }
                             if (!m_faultDiagnosticPage) {
                                 m_faultDiagnosticPage = new FaultDiagnostic();
-                                m_faultDiagnosticPageIndex = addPage(m_faultDiagnosticPage, QStringLiteral("FaultDiagnostic"), false);
+                                m_faultDiagnosticPage->setRuntimeThreadManager(m_jyManager);
+                                m_faultDiagnosticPageIndex = addPage(m_faultDiagnosticPage, QStringLiteral("故障诊断"), false);
                             }
 
                             QVector<FaultDiagnostic::ComponentViewData> components;
@@ -532,8 +566,8 @@ MainWindow::MainWindow(QWidget *parent)
 
                             if (!unboundRefs.isEmpty()) {
                                 QMessageBox::warning(this,
-                                                     QStringLiteral("Bindings"),
-                                                     QStringLiteral("Missing type-plugin binding for: %1")
+                                                     QStringLiteral("类型未绑定"),
+                                                     QStringLiteral("以下元件未绑定类型与插件：%1")
                                                          .arg(unboundRefs.join(QStringLiteral(", "))));
                                 return;
                             }
@@ -561,7 +595,7 @@ MainWindow::MainWindow(QWidget *parent)
             if (!m_dataCapturePage) {
                 m_dataCapturePage = new DataCaptureCard();
                 m_dataCapturePage->setJYThreadManager(m_jyManager);
-                m_dataCapturePageIndex = addPage(m_dataCapturePage, QStringLiteral("DataCapture"), false);
+                m_dataCapturePageIndex = addPage(m_dataCapturePage, QStringLiteral("数据采集"), false);
 
                 connect(m_dataCapturePage, &DataCaptureCard::config8902Changed, this,
                         [this](const JY8902Config &config) {
@@ -673,7 +707,7 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (!m_irCameraPage) {
                 m_irCameraPage = new IRCamera();
-                m_irCameraPageIndex = addPage(m_irCameraPage, QStringLiteral("IRCamera"), false);
+                m_irCameraPageIndex = addPage(m_irCameraPage, QStringLiteral("红外相机"), false);
             }
             if (m_irCameraPageIndex >= 0 && m_irCameraPageIndex < ui->pagesStack->count()) {
                 ui->pagesStack->setCurrentIndex(m_irCameraPageIndex);
@@ -693,7 +727,7 @@ MainWindow::MainWindow(QWidget *parent)
             if (!m_dataGeneratePage) {
                 m_dataGeneratePage = new DataGenerateCard();
                 m_dataGeneratePage->setJYThreadManager(m_jyManager);
-                m_dataGeneratePageIndex = addPage(m_dataGeneratePage, QStringLiteral("DataGenerate"), false);
+                m_dataGeneratePageIndex = addPage(m_dataGeneratePage, QStringLiteral("数据生成"), false);
             }
             if (m_dataGeneratePageIndex >= 0 && m_dataGeneratePageIndex < ui->pagesStack->count()) {
                 ui->pagesStack->setCurrentIndex(m_dataGeneratePageIndex);
@@ -708,7 +742,8 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (!m_faultDiagnosticPage) {
                 m_faultDiagnosticPage = new FaultDiagnostic();
-                m_faultDiagnosticPageIndex = addPage(m_faultDiagnosticPage, QStringLiteral("FaultDiagnostic"), false);
+                m_faultDiagnosticPage->setRuntimeThreadManager(m_jyManager);
+                m_faultDiagnosticPageIndex = addPage(m_faultDiagnosticPage, QStringLiteral("故障诊断"), false);
             }
             if (m_faultDiagnosticPageIndex >= 0 && m_faultDiagnosticPageIndex < ui->pagesStack->count()) {
                 ui->pagesStack->setCurrentIndex(m_faultDiagnosticPageIndex);
@@ -723,7 +758,7 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (!m_boardManagerPage) {
                 m_boardManagerPage = new BoardManager();
-                m_boardManagerPageIndex = addPage(m_boardManagerPage, QStringLiteral("BoardManager"), false);
+                m_boardManagerPageIndex = addPage(m_boardManagerPage, QStringLiteral("元件管理"), false);
 
                 connect(m_boardManagerPage, &BoardManager::testRequested, this,
                     [this](const QString &boardId,
@@ -735,7 +770,8 @@ MainWindow::MainWindow(QWidget *parent)
                             }
                             if (!m_faultDiagnosticPage) {
                                 m_faultDiagnosticPage = new FaultDiagnostic();
-                                m_faultDiagnosticPageIndex = addPage(m_faultDiagnosticPage, QStringLiteral("FaultDiagnostic"), false);
+                                m_faultDiagnosticPage->setRuntimeThreadManager(m_jyManager);
+                                m_faultDiagnosticPageIndex = addPage(m_faultDiagnosticPage, QStringLiteral("故障诊断"), false);
                             }
 
                             const QString dbPath = resolveTaskParamDbPath();
@@ -767,8 +803,8 @@ MainWindow::MainWindow(QWidget *parent)
                                                                        dbEntry.componentType);
                                 if (task.pluginId.isEmpty()) {
                                     QMessageBox::warning(this,
-                                                         QStringLiteral("Bindings"),
-                                                         QStringLiteral("Missing type-plugin binding for component: %1").arg(ref));
+                                                         QStringLiteral("类型未绑定"),
+                                                         QStringLiteral("以下元件未绑定类型与插件：%1").arg(ref));
                                     return;
                                 }
                                 task.parameters = dbEntry.parameters;
@@ -807,7 +843,7 @@ MainWindow::MainWindow(QWidget *parent)
                 attachWorker(worker);
             }
             if (ui && ui->labelJY5711Status) {
-                ui->labelJY5711Status->setText(QStringLiteral("鐘舵€侊細鍒濆鍖栦腑"));
+                ui->labelJY5711Status->setText(QStringLiteral("状态：初始化中"));
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe5711, nullptr)) {
                 worker->postConfigure(build5711Config());
@@ -825,7 +861,7 @@ MainWindow::MainWindow(QWidget *parent)
                 attachWorker(worker);
             }
             if (ui && ui->labelJY5322Status) {
-                ui->labelJY5322Status->setText(QStringLiteral("鐘舵€侊細鍒濆鍖栦腑"));
+                ui->labelJY5322Status->setText(QStringLiteral("状态：初始化中"));
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe5322, nullptr)) {
                 worker->postConfigure(build532xConfig(JYDeviceKind::PXIe5322, 16));
@@ -843,7 +879,7 @@ MainWindow::MainWindow(QWidget *parent)
                 attachWorker(worker);
             }
             if (ui && ui->labelJY5323Status) {
-                ui->labelJY5323Status->setText(QStringLiteral("鐘舵€侊細鍒濆鍖栦腑"));
+                ui->labelJY5323Status->setText(QStringLiteral("状态：初始化中"));
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe5323, nullptr)) {
                 worker->postConfigure(build532xConfig(JYDeviceKind::PXIe5323, 32));
@@ -861,7 +897,7 @@ MainWindow::MainWindow(QWidget *parent)
                 attachWorker(worker);
             }
             if (ui && ui->labelJY8902Status) {
-                ui->labelJY8902Status->setText(QStringLiteral("鐘舵€侊細鍒濆鍖栦腑"));
+                ui->labelJY8902Status->setText(QStringLiteral("状态：初始化中"));
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe8902, nullptr)) {
                 worker->postConfigure(build8902Config());
@@ -897,8 +933,8 @@ MainWindow::MainWindow(QWidget *parent)
             m_irStationRunning = IRCameraStation::instance()->isRunning();
             if (ui->labelInfraredStatus) {
                 ui->labelInfraredStatus->setText(m_irStationRunning
-                                                  ? QStringLiteral("Status: Running")
-                                                  : QStringLiteral("Status: Initialization failed"));
+                                                  ? QStringLiteral("状态：运行中")
+                                                  : QStringLiteral("状态：初始化失败"));
             }
             if (m_irCameraPage) {
                 m_irCameraPage->setStationEnabled(m_irStationRunning);
@@ -911,15 +947,7 @@ MainWindow::MainWindow(QWidget *parent)
             if (!ui || !ui->labelInfraredStatus) {
                 return;
             }
-            QString status = text;
-            if (text.contains(QStringLiteral("started"), Qt::CaseInsensitive)) {
-                status = QStringLiteral("Running");
-            } else if (text.contains(QStringLiteral("stopped"), Qt::CaseInsensitive)) {
-                status = QStringLiteral("Stopped");
-            } else if (text.contains(QStringLiteral("failed"), Qt::CaseInsensitive)) {
-                status = QStringLiteral("Initialization failed");
-            }
-            ui->labelInfraredStatus->setText(QStringLiteral("Status: %1").arg(status));
+            ui->labelInfraredStatus->setText(QStringLiteral("状态：%1").arg(chineseInfraredStatus(text)));
         });
     }
 
@@ -1033,8 +1061,8 @@ MainWindow::MainWindow(QWidget *parent)
     if (ui->actionguanyu) {
         connect(ui->actionguanyu, &QAction::triggered, this, [this]() {
             QMessageBox::about(this,
-                               QStringLiteral("About ATS"),
-                               QStringLiteral("ATS Fault Detect\n\nMenu shortcuts now mirror the main navigation and device initialization actions."));
+                               QStringLiteral("关于 ATS"),
+                               QStringLiteral("ATS 故障检测系统\n\n菜单快捷入口已与主页导航和设备初始化操作保持一致。"));
         });
     }
 
@@ -1089,7 +1117,7 @@ int MainWindow::addPage(QWidget *page, const QString &pageName, bool switchToPag
     }
 
     if (ui->labelPageInfo) {
-        ui->labelPageInfo->setText(QStringLiteral("Total %1 pages").arg(ui->pagesStack->count()));
+        ui->labelPageInfo->setText(QStringLiteral("共 %1 页").arg(ui->pagesStack->count()));
     }
 
     if (m_pageButtonManager) {

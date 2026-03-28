@@ -12,6 +12,7 @@
 #include "ircamerastation.h"
 
 class QGraphicsEllipseItem;
+class QGraphicsLineItem;
 class QGraphicsPixmapItem;
 class QGraphicsRectItem;
 class QGraphicsScene;
@@ -35,6 +36,8 @@ public:
     void setInputData(const QImage &irImage, const QVector<double> &temperatureMatrix, const QSize &matrixSize);
     void setStreamData(const QImage &irImage, const QVector<double> &temperatureMatrix, const QSize &matrixSize);
     void setStationEnabled(bool enabled);
+    void setResultMarker(const QPointF &pos, const QString &label = QStringLiteral("最高温"));
+    void clearResultMarker();
     bool firstBoxRect(QRectF *rect) const;
     QVector<QRectF> boxRects() const;
     int boxCount() const;
@@ -87,6 +90,7 @@ private:
     void refreshMeasurements();
     void updatePointTemperatureById(const QString &id, double temp);
     void updateBoxTemperatureById(const QString &id, double minT, double maxT, double avgT);
+    void refreshResultMarker();
 
     double temperatureAt(const QPointF &scenePos) const;
     QRectF clampRectToImage(const QRectF &rect) const;
@@ -122,6 +126,12 @@ private:
 
     QPoint m_lastHoverPixel;
     double m_lastHoverTemp = std::numeric_limits<double>::quiet_NaN();
+    bool m_hasResultMarker = false;
+    QPointF m_resultMarkerPos;
+    QString m_resultMarkerText;
+    QGraphicsLineItem *m_resultMarkerLine1 = nullptr;
+    QGraphicsLineItem *m_resultMarkerLine2 = nullptr;
+    QGraphicsSimpleTextItem *m_resultMarkerLabel = nullptr;
 
 };
 

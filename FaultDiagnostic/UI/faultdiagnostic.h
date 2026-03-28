@@ -15,6 +15,7 @@
 #include "../Diagnostics/Plugins/inductordiagnosticplugin.h"
 #include "../Diagnostics/Plugins/multitpsdiagnosticplugin.h"
 #include "../Diagnostics/Plugins/resistordiagnosticplugin.h"
+#include "../Diagnostics/Plugins/typicaldiagnosticplugin.h"
 #include "../Diagnostics/Plugins/transistordiagnosticplugin.h"
 #include "../TPS/Manager/tpspluginmanager.h"
 
@@ -52,6 +53,8 @@ public:
         QImage thermalImage;
         QVector<double> thermalMatrix;
         QSize thermalMatrixSize;
+        QPointF thermalAlarmPoint;
+        bool hasThermalAlarmPoint = false;
         QVector<double> x;
         QVector<double> y;
         QVector<double> x5322;
@@ -89,6 +92,7 @@ private slots:
     void onTestClicked();
 
 private:
+    void bindThreadManagerSignals();
     void buildWidgets();
     void applyThemeQss();
     void setCurrentIndex(int index);
@@ -123,10 +127,12 @@ private:
     CapacitorDiagnosticPlugin *m_capacitorDiagnosticPlugin = nullptr;
     InductorDiagnosticPlugin *m_inductorDiagnosticPlugin = nullptr;
     ResistorDiagnosticPlugin *m_resistorDiagnosticPlugin = nullptr;
+    TypicalDiagnosticPlugin *m_typicalDiagnosticPlugin = nullptr;
     TransistorDiagnosticPlugin *m_transistorDiagnosticPlugin = nullptr;
     DiagnosticDispatcher m_diagnosticDispatcher;
     TestTaskContextManager *m_taskContextManager = nullptr;
     bool m_devicesCreated = false;
+    bool m_ownsThreadManager = false;
 };
 
 #endif // FAULTDIAGNOSTIC_H

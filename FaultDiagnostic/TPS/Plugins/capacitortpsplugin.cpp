@@ -241,6 +241,24 @@ TPSPluginRequirement CapacitorTpsPlugin::requirements() const
     temperatureAnchor.type = TPSParamType::Integer;
     temperatureAnchor.defaultValue = -1;
 
+    TPSParamDefinition temperatureWarn;
+    temperatureWarn.key = QStringLiteral("temperatureWarnC");
+    temperatureWarn.label = QStringLiteral("温度预警阈值(℃)");
+    temperatureWarn.type = TPSParamType::Double;
+    temperatureWarn.defaultValue = 60.0;
+    temperatureWarn.minValue = -40.0;
+    temperatureWarn.maxValue = 250.0;
+    temperatureWarn.stepValue = 0.1;
+
+    TPSParamDefinition temperatureTrip;
+    temperatureTrip.key = QStringLiteral("temperatureTripC");
+    temperatureTrip.label = QStringLiteral("温度停机阈值(℃)");
+    temperatureTrip.type = TPSParamType::Double;
+    temperatureTrip.defaultValue = 80.0;
+    temperatureTrip.minValue = -40.0;
+    temperatureTrip.maxValue = 250.0;
+    temperatureTrip.stepValue = 0.1;
+
     TPSPortRequest outputReq;
     outputReq.type = TPSPortType::VoltageOutput;
     outputReq.count = 1;
@@ -264,6 +282,8 @@ TPSPluginRequirement CapacitorTpsPlugin::requirements() const
         inputVinAnchor,
         outputVinAnchor,
         outputGroundAnchor,
+        temperatureWarn,
+        temperatureTrip,
         temperatureAnchor
     };
     requirement.ports = {outputReq, inputReq};

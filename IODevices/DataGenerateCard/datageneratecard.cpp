@@ -364,7 +364,7 @@ void DataGenerateCard::openChannelEditor(int channel)
     waveformBox->setCurrentText(PXIe5711_testtype_to_string(cfg.waveform));
 
     auto *amplitudeSpin = new QDoubleSpinBox(&dialog);
-    amplitudeSpin->setRange(0.0, 20.0);
+    amplitudeSpin->setRange(0.0, 10.0);
     amplitudeSpin->setDecimals(3);
     amplitudeSpin->setValue(cfg.amplitude);
 

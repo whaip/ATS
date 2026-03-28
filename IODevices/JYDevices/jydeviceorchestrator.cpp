@@ -251,14 +251,37 @@ bool JYDeviceOrchestrator::waitForAll(JYDeviceState targetState,
     if (timeoutMs <= 0) {
         timeoutMs = 3000;
     }
-    timer.start(timeoutMs);
 
-    while (timer.isActive()) {
+    QList<QMetaObject::Connection> stateConnections;
+    stateConnections.reserve(m_workers.size());
+
+    auto quitIfReady = [&]() {
         if (isDone()) {
-            timer.stop();
-            return true;
+            loop.quit();
         }
-        loop.processEvents(QEventLoop::AllEvents, 50);
+    };
+
+    for (auto *worker : m_workers) {
+        if (!worker) {
+            continue;
+        }
+        stateConnections.push_back(
+            connect(worker, &JYDeviceWorker::statusChanged, &loop,
+                    [&](JYDeviceKind, JYDeviceState, const QString &) {
+                        quitIfReady();
+                    }));
+    }
+
+    timer.start(timeoutMs);
+    loop.exec(QEventLoop::AllEvents);
+
+    for (const auto &connection : stateConnections) {
+        disconnect(connection);
+    }
+
+    if (isDone()) {
+        timer.stop();
+        return true;
     }
 
     if (reason) {
