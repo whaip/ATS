@@ -424,6 +424,46 @@ bool RuntimeServices::pauseRun(int timeoutMs, QString *error)
     return true;
 }
 
+bool RuntimeServices::completeRun(int timeoutMs, QString *error)
+{
+    if (!ensureAuthorized(RuntimeAction::Pause, error)) {
+        emit runtimeError(error ? *error : QString());
+        return false;
+    }
+    if (!ensureRuntimeReady(error)) {
+        emit runtimeError(error ? *error : QString());
+        return false;
+    }
+
+    if (m_state == RuntimeState::Running) {
+        const bool stopped = m_manager->orchestrator()->synchronizeStop(timeoutMs);
+        if (!stopped) {
+            if (error) {
+                *error = QStringLiteral("complete run stop failed");
+            }
+            setState(RuntimeState::Faulted);
+            emit runtimeError(error ? *error : QString());
+            return false;
+        }
+    } else if (m_state != RuntimeState::Paused && m_state != RuntimeState::Completed) {
+        if (error) {
+            *error = QStringLiteral("runtime not active");
+        }
+        return false;
+    }
+
+    if (m_manager && m_manager->orchestrator()) {
+        m_manager->orchestrator()->closeAll();
+    }
+
+    setState(RuntimeState::Completed);
+    if (m_mtd) {
+        m_mtd->recordEvent(QStringLiteral("completed"));
+        m_mtd->closeSession();
+    }
+    return true;
+}
+
 bool RuntimeServices::resumeRun(int timeoutMs, QString *error)
 {
     if (!ensureAuthorized(RuntimeAction::Start, error)) {

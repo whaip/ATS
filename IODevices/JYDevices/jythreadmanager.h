@@ -31,6 +31,7 @@ signals:
 
 private:
     QVector<JYDeviceWorker *> m_workers;
+    QMap<JYDeviceKind, JYDeviceWorker *> m_workerByKind;
     JYDeviceOrchestrator *m_orchestrator = nullptr;
     JYDataPipeline *m_pipeline = nullptr;
     QMap<JYDeviceKind, bool> m_initialized;

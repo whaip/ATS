@@ -7,6 +7,7 @@
 #include "../Plugins/capacitortpsplugin.h"
 #include "../Plugins/inductortpsplugin.h"
 #include "../Plugins/transistortpsplugin.h"
+#include "../Plugins/typicaltpsplugin.h"
 
 void registerDefaultTpsBuiltins(TPSPluginManager *manager, QObject *parentForPlugins)
 {
@@ -34,4 +35,7 @@ void registerDefaultTpsBuiltins(TPSPluginManager *manager, QObject *parentForPlu
 
     auto *multi = new MultiSignalTpsPlugin(parentForPlugins);
     manager->addBuiltin(multi);
+
+    auto *typical = new TypicalTpsPlugin(parentForPlugins);
+    manager->addBuiltin(typical);
 }

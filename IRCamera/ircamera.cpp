@@ -7,6 +7,7 @@
 
 #include <QEvent>
 #include <QGraphicsEllipseItem>
+#include <QGraphicsLineItem>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
@@ -108,6 +109,7 @@ void IRCamera::setInputData(const QImage &irImage, const QVector<double> &temper
     ensureScene();
     clearMeasurements();
     updateStats();
+    refreshResultMarker();
 }
 
 void IRCamera::setStreamData(const QImage &irImage, const QVector<double> &temperatureMatrix, const QSize &matrixSize)
@@ -125,6 +127,7 @@ void IRCamera::setStreamData(const QImage &irImage, const QVector<double> &tempe
     if (!m_stationEnabled) {
         refreshMeasurements();
     }
+    refreshResultMarker();
 }
 
 void IRCamera::setStationEnabled(bool enabled)
@@ -151,6 +154,20 @@ void IRCamera::setStationEnabled(bool enabled)
             setStreamData(frame.irImage, frame.temperatureMatrix, frame.matrixSize);
         }
     }
+}
+
+void IRCamera::setResultMarker(const QPointF &pos, const QString &label)
+{
+    m_hasResultMarker = true;
+    m_resultMarkerPos = pos;
+    m_resultMarkerText = label;
+    refreshResultMarker();
+}
+
+void IRCamera::clearResultMarker()
+{
+    m_hasResultMarker = false;
+    refreshResultMarker();
 }
 
 bool IRCamera::firstBoxRect(QRectF *rect) const
@@ -430,6 +447,61 @@ void IRCamera::clearMeasurements()
     if (m_stationClient && m_stationEnabled) {
         m_stationClient->clearSubscriptions();
     }
+}
+
+void IRCamera::refreshResultMarker()
+{
+    if (!m_scene) {
+        return;
+    }
+
+    if (m_resultMarkerLine1) {
+        m_scene->removeItem(m_resultMarkerLine1);
+        delete m_resultMarkerLine1;
+        m_resultMarkerLine1 = nullptr;
+    }
+    if (m_resultMarkerLine2) {
+        m_scene->removeItem(m_resultMarkerLine2);
+        delete m_resultMarkerLine2;
+        m_resultMarkerLine2 = nullptr;
+    }
+    if (m_resultMarkerLabel) {
+        m_scene->removeItem(m_resultMarkerLabel);
+        delete m_resultMarkerLabel;
+        m_resultMarkerLabel = nullptr;
+    }
+
+    if (!m_hasResultMarker || m_irImage.isNull()) {
+        return;
+    }
+
+    const QRectF bounds(0, 0, m_irImage.width(), m_irImage.height());
+    if (!bounds.contains(m_resultMarkerPos)) {
+        return;
+    }
+
+    QPen pen(QColor(0, 255, 255, 230));
+    pen.setWidth(3);
+    const qreal radius = 8.0;
+    m_resultMarkerLine1 = m_scene->addLine(m_resultMarkerPos.x() - radius,
+                                           m_resultMarkerPos.y() - radius,
+                                           m_resultMarkerPos.x() + radius,
+                                           m_resultMarkerPos.y() + radius,
+                                           pen);
+    m_resultMarkerLine2 = m_scene->addLine(m_resultMarkerPos.x() - radius,
+                                           m_resultMarkerPos.y() + radius,
+                                           m_resultMarkerPos.x() + radius,
+                                           m_resultMarkerPos.y() - radius,
+                                           pen);
+    m_resultMarkerLine1->setZValue(20.0);
+    m_resultMarkerLine2->setZValue(20.0);
+
+    m_resultMarkerLabel = m_scene->addSimpleText(m_resultMarkerText.isEmpty()
+                                                     ? QStringLiteral("最高温")
+                                                     : m_resultMarkerText);
+    m_resultMarkerLabel->setBrush(QBrush(QColor(0, 255, 255, 230)));
+    m_resultMarkerLabel->setPos(m_resultMarkerPos.x() + 8.0, m_resultMarkerPos.y() - 24.0);
+    m_resultMarkerLabel->setZValue(21.0);
 }
 
 void IRCamera::updateStats()

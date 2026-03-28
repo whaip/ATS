@@ -1,4 +1,4 @@
-QT       += core gui concurrent printsupport openglwidgets
+QT       += core gui concurrent printsupport openglwidgets serialport
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -33,6 +33,7 @@ SOURCES += \
     FaultDiagnostic/Diagnostics/Plugins/inductordiagnosticplugin.cpp \
     FaultDiagnostic/Diagnostics/Plugins/multitpsdiagnosticplugin.cpp \
     FaultDiagnostic/Diagnostics/Plugins/resistordiagnosticplugin.cpp \
+    FaultDiagnostic/Diagnostics/Plugins/typicaldiagnosticplugin.cpp \
     FaultDiagnostic/Diagnostics/Plugins/transistordiagnosticplugin.cpp \
     FaultDiagnostic/Runtime/systemorchestration.cpp \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.cpp \
@@ -44,6 +45,7 @@ SOURCES += \
     FaultDiagnostic/TPS/Plugins/inductortpsplugin.cpp \
     FaultDiagnostic/TPS/Plugins/transistortpsplugin.cpp \
     FaultDiagnostic/TPS/Plugins/multitpsplugin.cpp \
+    FaultDiagnostic/TPS/Plugins/typicaltpsplugin.cpp \
     HDCamera/hdcamera.cpp \
     HDCamera/camerastation.cpp \
     HDCamera/camerastationclient.cpp \
@@ -75,6 +77,7 @@ SOURCES += \
     tool/labelrectitem.cpp \
     tool/labelediting.cpp \
     tool/lebalitemmanager.cpp \
+    tool/ch340.cpp \
     tool/pcb_extract.cpp \
     tool/pcbextract.cpp \
     tool/siftmatcher.cpp
@@ -108,6 +111,7 @@ HEADERS += \
     FaultDiagnostic/Diagnostics/Plugins/inductordiagnosticplugin.h \
     FaultDiagnostic/Diagnostics/Plugins/multitpsdiagnosticplugin.h \
     FaultDiagnostic/Diagnostics/Plugins/resistordiagnosticplugin.h \
+    FaultDiagnostic/Diagnostics/Plugins/typicaldiagnosticplugin.h \
     FaultDiagnostic/Diagnostics/Plugins/transistordiagnosticplugin.h \
     FaultDiagnostic/Runtime/systemorchestration.h \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.h \
@@ -121,6 +125,7 @@ HEADERS += \
     FaultDiagnostic/TPS/Plugins/inductortpsplugin.h \
     FaultDiagnostic/TPS/Plugins/transistortpsplugin.h \
     FaultDiagnostic/TPS/Plugins/multitpsplugin.h \
+    FaultDiagnostic/TPS/Plugins/typicaltpsplugin.h \
     FaultDiagnostic/Core/testplan.h \
     HDCamera/hdcamera.h \
     HDCamera/camerastation.h \
@@ -157,6 +162,7 @@ HEADERS += \
     tool/labelrectitem.h \
     tool/labelediting.h \
     tool/lebalitemmanager.h \
+    tool/ch340.h \
     tool/pcb_extract.h \
     tool/pcbextract.h \
     tool/siftmatcher.h

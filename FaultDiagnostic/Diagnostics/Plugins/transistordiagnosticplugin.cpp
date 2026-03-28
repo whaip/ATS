@@ -26,6 +26,35 @@ double firstPresent(const QMap<QString, QVariant> &parameters,
     return defaultValue;
 }
 
+bool temperatureAlarmTriggered(const DiagnosticInput &input,
+                               double *maxTempC = nullptr,
+                               double *thresholdC = nullptr)
+{
+    const bool triggered = input.parameters.value(QStringLiteral("temperatureAlarmTriggered"), false).toBool();
+    if (!triggered) {
+        return false;
+    }
+
+    if (maxTempC) {
+        *maxTempC = firstPresent(input.parameters,
+                                 {QStringLiteral("temperatureAlarmMaxC"),
+                                  QStringLiteral("temperatureMaxC"),
+                                  QStringLiteral("roiMaxTempC"),
+                                  QStringLiteral("tMaxC")},
+                                 std::numeric_limits<double>::quiet_NaN());
+    }
+    if (thresholdC) {
+        *thresholdC = firstPresent(input.parameters,
+                                   {QStringLiteral("temperatureAlarmThresholdC"),
+                                    QStringLiteral("temperatureWarnC"),
+                                    QStringLiteral("temperatureTripC"),
+                                    QStringLiteral("tWarnC"),
+                                    QStringLiteral("tTripC")},
+                                   std::numeric_limits<double>::quiet_NaN());
+    }
+    return true;
+}
+
 QVector<double> firstSignalSamples(const DiagnosticInput &input, const QStringList &signalKeys)
 {
     for (const QString &key : signalKeys) {
@@ -153,6 +182,25 @@ DiagnosticReport TransistorDiagnosticPlugin::diagnose(const DiagnosticInput &inp
     DiagnosticReport report;
     report.componentRef = input.componentRef;
     report.componentType = input.componentType;
+
+    double alarmMaxC = std::numeric_limits<double>::quiet_NaN();
+    double alarmThresholdC = std::numeric_limits<double>::quiet_NaN();
+    if (temperatureAlarmTriggered(input, &alarmMaxC, &alarmThresholdC)) {
+        report.success = false;
+        report.summary = QStringLiteral("FAIL");
+        report.metrics.insert(QStringLiteral("thermal.alarm"), true);
+        if (!std::isnan(alarmMaxC)) {
+            report.metrics.insert(QStringLiteral("temperature.maxC"), alarmMaxC);
+        }
+        if (!std::isnan(alarmThresholdC)) {
+            report.metrics.insert(QStringLiteral("temperature.alarmThresholdC"), alarmThresholdC);
+        }
+        report.detailHtml = QStringLiteral("<p>测温区域异常，元件已损坏，已停止测试。</p>");
+        if (error) {
+            *error = QStringLiteral("temperature alarm triggered");
+        }
+        return report;
+    }
 
     QVector<double> vc = firstSignalSamples(input,
                                             {QStringLiteral("transistorVcInput"), QStringLiteral("vcSamples")});

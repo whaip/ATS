@@ -43,6 +43,9 @@
 #include <QUuid>
 #include <QtMath>
 #include <algorithm>
+#include <cmath>
+#include <functional>
+#include <limits>
 
 namespace {
 QString deviceKindNameForLog(JYDeviceKind kind)
@@ -270,6 +273,59 @@ QStringList inferRoiFocusTargets(const QMap<QString, QVariant> &settings)
     return {focusTargetFromVariant(settings.value(QStringLiteral("temperatureAnchor")))};
 }
 
+QPointF maxTemperaturePointInRect(const IRCameraStation::Frame &frame, const QRectF &rect, bool *ok = nullptr)
+{
+    if (ok) {
+        *ok = false;
+    }
+    if (frame.irImage.isNull() || frame.temperatureMatrix.isEmpty() || !frame.matrixSize.isValid()) {
+        return {};
+    }
+
+    QRectF bounded = rect.normalized();
+    bounded.setLeft(std::clamp(bounded.left(), 0.0, static_cast<double>(frame.irImage.width())));
+    bounded.setTop(std::clamp(bounded.top(), 0.0, static_cast<double>(frame.irImage.height())));
+    bounded.setRight(std::clamp(bounded.right(), 0.0, static_cast<double>(frame.irImage.width())));
+    bounded.setBottom(std::clamp(bounded.bottom(), 0.0, static_cast<double>(frame.irImage.height())));
+    if (bounded.width() <= 0.0 || bounded.height() <= 0.0) {
+        return {};
+    }
+
+    const int x0 = std::clamp(static_cast<int>(bounded.left() / frame.irImage.width() * frame.matrixSize.width()), 0, frame.matrixSize.width() - 1);
+    const int x1 = std::clamp(static_cast<int>(bounded.right() / frame.irImage.width() * frame.matrixSize.width()), 0, frame.matrixSize.width() - 1);
+    const int y0 = std::clamp(static_cast<int>(bounded.top() / frame.irImage.height() * frame.matrixSize.height()), 0, frame.matrixSize.height() - 1);
+    const int y1 = std::clamp(static_cast<int>(bounded.bottom() / frame.irImage.height() * frame.matrixSize.height()), 0, frame.matrixSize.height() - 1);
+
+    double bestTemp = -std::numeric_limits<double>::infinity();
+    int bestX = -1;
+    int bestY = -1;
+    for (int y = qMin(y0, y1); y <= qMax(y0, y1); ++y) {
+        const int row = y * frame.matrixSize.width();
+        for (int x = qMin(x0, x1); x <= qMax(x0, x1); ++x) {
+            const int index = row + x;
+            if (index < 0 || index >= frame.temperatureMatrix.size()) {
+                continue;
+            }
+            const double temperature = frame.temperatureMatrix.at(index);
+            if (temperature > bestTemp) {
+                bestTemp = temperature;
+                bestX = x;
+                bestY = y;
+            }
+        }
+    }
+
+    if (bestX < 0 || bestY < 0) {
+        return {};
+    }
+
+    if (ok) {
+        *ok = true;
+    }
+    return QPointF((bestX + 0.5) * frame.irImage.width() / frame.matrixSize.width(),
+                   (bestY + 0.5) * frame.irImage.height() / frame.matrixSize.height());
+}
+
 QStringList resolveFocusTargets(const TPSDevicePlan &plan,
                                 const QMap<QString, QVariant> &settings,
                                 bool wiring)
@@ -356,36 +412,9 @@ FaultDiagnostic::FaultDiagnostic(QWidget *parent)
     m_runtime = new SystemRuntimeOrchestration(this);
     m_runtime->setCameraStation(CameraStation::instance());
     m_threadManager = new JYThreadManager(this);
+    m_ownsThreadManager = true;
     m_runtime->setThreadManager(m_threadManager);
-    if (m_threadManager->pipeline()) {
-        connect(m_threadManager->pipeline(), &JYDataPipeline::packetIngested, this,
-                [](JYDeviceKind kind, int channelCount, int dataSize, qint64 ts) {
-                    static QElapsedTimer timer;
-                    static qint64 lastMs = -1;
-                    if (!timer.isValid()) {
-                        timer.start();
-                        lastMs = 0;
-                    }
-                    const qint64 nowMs = timer.elapsed();
-                    if (nowMs - lastMs < 1000) {
-                        return;
-                    }
-                    lastMs = nowMs;
-                    Logger::log(QStringLiteral("FaultDiag packet: kind=%1 ch=%2 size=%3 ts=%4")
-                                    .arg(static_cast<int>(kind))
-                                    .arg(channelCount)
-                                    .arg(dataSize)
-                                    .arg(ts),
-                                Logger::Level::Info);
-                });
-        connect(m_threadManager->pipeline(), &JYDataPipeline::packetRejected, this,
-                [](JYDeviceKind kind, const QString &reason) {
-                    Logger::log(QStringLiteral("FaultDiag packet rejected: kind=%1 reason=%2")
-                                    .arg(static_cast<int>(kind))
-                                    .arg(reason),
-                                Logger::Level::Warn);
-                });
-    }
+    bindThreadManagerSignals();
     if (m_runtime->frm()) {
         FrameworkSecurityService::UserContext user;
         user.userId = QStringLiteral("local");
@@ -405,11 +434,13 @@ FaultDiagnostic::FaultDiagnostic(QWidget *parent)
     m_capacitorDiagnosticPlugin = new CapacitorDiagnosticPlugin(this);
     m_inductorDiagnosticPlugin = new InductorDiagnosticPlugin(this);
     m_resistorDiagnosticPlugin = new ResistorDiagnosticPlugin(this);
+    m_typicalDiagnosticPlugin = new TypicalDiagnosticPlugin(this);
     m_transistorDiagnosticPlugin = new TransistorDiagnosticPlugin(this);
     m_diagPluginManager->addBuiltin(m_multiSignalDiagnosticPlugin);
     m_diagPluginManager->addBuiltin(m_capacitorDiagnosticPlugin);
     m_diagPluginManager->addBuiltin(m_inductorDiagnosticPlugin);
     m_diagPluginManager->addBuiltin(m_resistorDiagnosticPlugin);
+    m_diagPluginManager->addBuiltin(m_typicalDiagnosticPlugin);
     m_diagPluginManager->addBuiltin(m_transistorDiagnosticPlugin);
     m_diagPluginManager->loadAll(nullptr);
     m_diagnosticDispatcher.setPluginManager(m_diagPluginManager);
@@ -433,6 +464,69 @@ FaultDiagnostic::~FaultDiagnostic()
 SystemRuntimeOrchestration *FaultDiagnostic::runtime() const
 {
     return m_runtime;
+}
+
+void FaultDiagnostic::setRuntimeThreadManager(JYThreadManager *manager)
+{
+    if (!manager || manager == m_threadManager) {
+        return;
+    }
+
+    if (m_ownsThreadManager && m_threadManager) {
+        m_threadManager->deleteLater();
+    }
+
+    m_threadManager = manager;
+    m_ownsThreadManager = false;
+    m_devicesCreated = false;
+    if (m_runtime) {
+        m_runtime->setThreadManager(m_threadManager);
+    }
+    bindThreadManagerSignals();
+}
+
+void FaultDiagnostic::setRuntimeCameraStation(CameraStation *station)
+{
+    if (m_runtime) {
+        m_runtime->setCameraStation(station);
+    }
+}
+
+void FaultDiagnostic::bindThreadManagerSignals()
+{
+    if (!m_threadManager || !m_threadManager->pipeline()) {
+        return;
+    }
+
+    connect(m_threadManager->pipeline(), &JYDataPipeline::packetIngested, this,
+            [](JYDeviceKind kind, int channelCount, int dataSize, qint64 ts) {
+                static QElapsedTimer timer;
+                static qint64 lastMs = -1;
+                if (!timer.isValid()) {
+                    timer.start();
+                    lastMs = 0;
+                }
+                const qint64 nowMs = timer.elapsed();
+                if (nowMs - lastMs < 1000) {
+                    return;
+                }
+                lastMs = nowMs;
+                Logger::log(QStringLiteral("FaultDiag packet: kind=%1 ch=%2 size=%3 ts=%4")
+                                .arg(static_cast<int>(kind))
+                                .arg(channelCount)
+                                .arg(dataSize)
+                                .arg(ts),
+                            Logger::Level::Info);
+            },
+            Qt::UniqueConnection);
+    connect(m_threadManager->pipeline(), &JYDataPipeline::packetRejected, this,
+            [](JYDeviceKind kind, const QString &reason) {
+                Logger::log(QStringLiteral("FaultDiag packet rejected: kind=%1 reason=%2")
+                                .arg(static_cast<int>(kind))
+                                .arg(reason),
+                            Logger::Level::Warn);
+            },
+            Qt::UniqueConnection);
 }
 
 void FaultDiagnostic::setComponents(const QVector<ComponentViewData> &items)
@@ -1171,8 +1265,10 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
     QVector<ResourceMapping> mappings;
     QVector<SignalRequest> signalRequests;
     QMap<JYDeviceKind, int> targetSamplesByKind;
+    int fallbackDurationMs = 0;
     for (const auto &task : runtimeTasks) {
         const int durationMs = qMax(1, task.settings.value(QStringLiteral("captureDurationMs"), 1000).toInt());
+        fallbackDurationMs = qMax(fallbackDurationMs, durationMs);
         const double durationSec = durationMs / 1000.0;
         const auto updateTarget = [&](JYDeviceKind kind, double sampleRateHz) {
             const int target = qMax(1, static_cast<int>(qCeil(durationSec * sampleRateHz)));
@@ -1254,12 +1350,15 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
 
     struct TempCapture {
         IRCameraStation::Frame frame;
+        IRCameraStation::Frame alarmFrame;
         IRCameraStation::PointResult point;
         QMap<QString, IRCameraStation::BoxResult> boxes;
         bool hasFrame = false;
+        bool hasAlarmFrame = false;
         bool hasPoint = false;
         bool hasBox = false;
         bool hasBatch = false;
+        bool alarmTriggered = false;
         JYAlignedBatch lastBatch;
         qint64 t0ms = -1;
         QVector<double> tempTimes;
@@ -1272,12 +1371,32 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
         QVector<double> y8902;
         QMap<JYDeviceKind, int> sampleCounts;
         QMap<JYDeviceKind, int> targetSamples;
+        double alarmThresholdC = std::numeric_limits<double>::quiet_NaN();
+        double alarmMaxTempC = std::numeric_limits<double>::quiet_NaN();
+        QString alarmSourceId;
+        QRectF alarmRect;
+        QPointF alarmPoint;
+        bool hasAlarmRect = false;
+        bool hasAlarmPoint = false;
         bool finished = false;
         CapturedDataManager dataManager;
     };
     auto capture = QSharedPointer<TempCapture>::create();
     capture->targetSamples = targetSamplesByKind;
     capture->dataManager.reset();
+    for (const auto &task : runtimeTasks) {
+        bool ok = false;
+        double threshold = task.settings.value(QStringLiteral("temperatureWarnC")).toDouble(&ok);
+        if (!ok) {
+            threshold = task.settings.value(QStringLiteral("temperatureTripC")).toDouble(&ok);
+        }
+        if (!ok) {
+            continue;
+        }
+        if (std::isnan(capture->alarmThresholdC) || threshold < capture->alarmThresholdC) {
+            capture->alarmThresholdC = threshold;
+        }
+    }
     const bool useCaptureManager = (m_threadManager && m_threadManager->pipeline()
                                     && !targetSamplesByKind.isEmpty());
     IRCameraStation *station = IRCameraStation::instance();
@@ -1308,6 +1427,7 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
             station->setBoxSubscription(tag, QStringLiteral("B1"), boxRect);
         }
 
+        auto finishRun = QSharedPointer<std::function<void()>>::create();
         auto frameConn = connect(station, &IRCameraStation::frameReady, this,
                                  [capture](const IRCameraStation::Frame &frame) {
                                      capture->frame = frame;
@@ -1325,14 +1445,41 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
                                      capture->tempValues.push_back(result.temp);
                                  });
         auto boxConn = connect(station, &IRCameraStation::boxTemperatureReady, this,
-                               [capture](const IRCameraStation::BoxResult &result) {
+                               [capture, finishRun](const IRCameraStation::BoxResult &result) {
                                    capture->boxes.insert(result.id, result);
                                    capture->hasBox = true;
+                                   if (std::isnan(capture->alarmMaxTempC) || result.maxTemp > capture->alarmMaxTempC) {
+                                       capture->alarmMaxTempC = result.maxTemp;
+                                   }
+                                   if (capture->alarmTriggered
+                                       || std::isnan(capture->alarmThresholdC)
+                                       || result.maxTemp < capture->alarmThresholdC) {
+                                       return;
+                                   }
+                                   capture->alarmTriggered = true;
+                                   capture->alarmSourceId = result.id;
+                                   capture->alarmRect = result.rect;
+                                   capture->hasAlarmRect = true;
+                                   if (capture->hasFrame) {
+                                       capture->alarmFrame = capture->frame;
+                                       capture->hasAlarmFrame = true;
+                                       bool pointOk = false;
+                                       capture->alarmPoint = maxTemperaturePointInRect(capture->frame, result.rect, &pointOk);
+                                       capture->hasAlarmPoint = pointOk;
+                                   }
+                                   Logger::log(QStringLiteral("FaultDiag temperature alarm: threshold=%1 current=%2 roi=%3")
+                                                   .arg(capture->alarmThresholdC, 0, 'f', 2)
+                                                   .arg(result.maxTemp, 0, 'f', 2)
+                                                   .arg(result.id),
+                                               Logger::Level::Warn);
+                                   if (*finishRun) {
+                                       (*finishRun)();
+                                   }
                                });
 
         QMetaObject::Connection batchConn;
         QMetaObject::Connection packetConn;
-        auto finishRun = [=]() {
+        *finishRun = [=]() {
             if (capture->finished) {
                 return;
             }
@@ -1353,7 +1500,7 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
 
             if (m_runtime && m_runtime->rts()) {
                 QString stopError;
-                m_runtime->rts()->pauseRun(2000, &stopError);
+                m_runtime->rts()->completeRun(2000, &stopError);
                 if (!stopError.isEmpty()) {
                     Logger::log(QStringLiteral("FaultDiag pause run warning: runId=%1 error=%2")
                                     .arg(runId)
@@ -1423,6 +1570,10 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
                 tempHtml += QStringLiteral("<p>框温度：%1</p>").arg(boxLines.join(QStringLiteral("；")));
             }
 
+            if (capture->alarmTriggered) {
+                tempHtml += QStringLiteral("<p>测温区域温度达到或超过预警阈值，测试已停止。</p>");
+            }
+
             for (const auto &task : runtimeTasks) {
                 const QString componentId = task.task.componentRef.trimmed().isEmpty()
                     ? task.signalPrefix
@@ -1436,16 +1587,41 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
                 ComponentViewData view;
                 view.id = componentId;
                 view.name = componentId;
-                if (capture->hasFrame) {
+                if (capture->hasAlarmFrame) {
+                    view.thermalImage = capture->alarmFrame.irImage;
+                    view.thermalMatrix = capture->alarmFrame.temperatureMatrix;
+                    view.thermalMatrixSize = capture->alarmFrame.matrixSize;
+                    if (!capture->hasAlarmPoint && capture->hasAlarmRect) {
+                        bool pointOk = false;
+                        capture->alarmPoint = maxTemperaturePointInRect(capture->alarmFrame, capture->alarmRect, &pointOk);
+                        capture->hasAlarmPoint = pointOk;
+                    }
+                } else if (capture->hasFrame) {
                     view.thermalImage = capture->frame.irImage;
                     view.thermalMatrix = capture->frame.temperatureMatrix;
                     view.thermalMatrixSize = capture->frame.matrixSize;
+                }
+                view.hasThermalAlarmPoint = capture->alarmTriggered && capture->hasAlarmPoint;
+                if (view.hasThermalAlarmPoint) {
+                    view.thermalAlarmPoint = capture->alarmPoint;
                 }
 
                 DiagnosticInput diagInput;
                 diagInput.componentRef = componentId;
                 diagInput.componentType = task.task.pluginId.isEmpty() ? QStringLiteral("tps.multi.signal") : task.task.pluginId;
                 diagInput.parameters = task.settings;
+                if (!std::isnan(capture->alarmMaxTempC)) {
+                    diagInput.parameters.insert(QStringLiteral("temperatureMaxC"), capture->alarmMaxTempC);
+                    diagInput.parameters.insert(QStringLiteral("roiMaxTempC"), capture->alarmMaxTempC);
+                    diagInput.parameters.insert(QStringLiteral("tMaxC"), capture->alarmMaxTempC);
+                }
+                diagInput.parameters.insert(QStringLiteral("temperatureAlarmTriggered"), capture->alarmTriggered);
+                if (!std::isnan(capture->alarmThresholdC)) {
+                    diagInput.parameters.insert(QStringLiteral("temperatureAlarmThresholdC"), capture->alarmThresholdC);
+                }
+                if (!capture->alarmSourceId.isEmpty()) {
+                    diagInput.parameters.insert(QStringLiteral("temperatureAlarmSourceId"), capture->alarmSourceId);
+                }
                 diagInput.timestamp = QDateTime::currentDateTime();
                 const auto stitchedSeries = capture->dataManager.buildSignalSeries(task.plan.bindings);
                 if (!stitchedSeries.isEmpty()) {
@@ -1552,7 +1728,9 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
                                             }
                                         }
                                         if (done) {
-                                            finishRun();
+                                            if (*finishRun) {
+                                                (*finishRun)();
+                                            }
                                             return;
                                         }
                                     }
@@ -1623,20 +1801,28 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
                                      }
 
                                      capture->hasBatch = true;
-                                     finishRun();
+                                     if (*finishRun) {
+                                         (*finishRun)();
+                                     }
                                  }, Qt::QueuedConnection);
         }
 
-        const int timeoutMs = targetSamplesByKind.isEmpty() ? 1500 : qMax(1500, *std::max_element(targetSamplesByKind.begin(), targetSamplesByKind.end()) / 100);
+        const int timeoutMs = targetSamplesByKind.isEmpty()
+            ? qMax(1500, fallbackDurationMs)
+            : qMax(1500, *std::max_element(targetSamplesByKind.begin(), targetSamplesByKind.end()) / 100);
         Logger::log(QStringLiteral("FaultDiag capture timeout armed: runId=%1 timeoutMs=%2")
                         .arg(runId)
                         .arg(timeoutMs),
                     Logger::Level::Info);
-        QTimer::singleShot(timeoutMs, this, [finishRun]() { finishRun(); });
+        QTimer::singleShot(timeoutMs, this, [finishRun]() {
+            if (*finishRun) {
+                (*finishRun)();
+            }
+        });
     } else {
         if (m_runtime && m_runtime->rts()) {
             QString stopError;
-            m_runtime->rts()->pauseRun(2000, &stopError);
+            m_runtime->rts()->completeRun(2000, &stopError);
         }
         Logger::log(QStringLiteral("FaultDiag test failed: runId=%1 reason=IRCameraUnavailable")
                         .arg(runId),
@@ -1767,12 +1953,15 @@ void FaultDiagnostic::runTest(const QString &componentRef,
 
     struct TempCapture {
         IRCameraStation::Frame frame;
+        IRCameraStation::Frame alarmFrame;
         IRCameraStation::PointResult point;
         IRCameraStation::BoxResult box;
         bool hasFrame = false;
+        bool hasAlarmFrame = false;
         bool hasPoint = false;
         bool hasBox = false;
         bool hasBatch = false;
+        bool alarmTriggered = false;
         JYAlignedBatch lastBatch;
         qint64 t0ms = -1;
         QVector<double> tempTimes;
@@ -1783,8 +1972,23 @@ void FaultDiagnostic::runTest(const QString &componentRef,
         QVector<double> y5323;
         QVector<double> x8902;
         QVector<double> y8902;
+        double alarmThresholdC = std::numeric_limits<double>::quiet_NaN();
+        double alarmMaxTempC = std::numeric_limits<double>::quiet_NaN();
+        QRectF alarmRect;
+        QPointF alarmPoint;
+        bool hasAlarmRect = false;
+        bool hasAlarmPoint = false;
+        bool finished = false;
     };
     auto capture = QSharedPointer<TempCapture>::create();
+    bool alarmThresholdOk = false;
+    capture->alarmThresholdC = settings.value(QStringLiteral("temperatureWarnC")).toDouble(&alarmThresholdOk);
+    if (!alarmThresholdOk) {
+        capture->alarmThresholdC = settings.value(QStringLiteral("temperatureTripC")).toDouble(&alarmThresholdOk);
+    }
+    if (!alarmThresholdOk) {
+        capture->alarmThresholdC = std::numeric_limits<double>::quiet_NaN();
+    }
     IRCameraStation *station = IRCameraStation::instance();
     if (station) {
         station->start();
@@ -1803,6 +2007,7 @@ void FaultDiagnostic::runTest(const QString &componentRef,
         station->setPointSubscription(tag, QStringLiteral("P1"), pointPos);
         station->setBoxSubscription(tag, QStringLiteral("B1"), boxRect);
 
+        auto finishRun = QSharedPointer<std::function<void()>>::create();
         auto frameConn = connect(station, &IRCameraStation::frameReady, this,
                                  [capture](const IRCameraStation::Frame &frame) {
                                      capture->frame = frame;
@@ -1820,10 +2025,35 @@ void FaultDiagnostic::runTest(const QString &componentRef,
                                      capture->tempValues.push_back(result.temp);
                                  });
         auto boxConn = connect(station, &IRCameraStation::boxTemperatureReady, this,
-                               [capture](const IRCameraStation::BoxResult &result) {
-                                   capture->box = result;
-                                   capture->hasBox = true;
-                               });
+                               [capture, finishRun](const IRCameraStation::BoxResult &result) {
+                                    capture->box = result;
+                                    capture->hasBox = true;
+                                    if (std::isnan(capture->alarmMaxTempC) || result.maxTemp > capture->alarmMaxTempC) {
+                                        capture->alarmMaxTempC = result.maxTemp;
+                                    }
+                                    if (capture->alarmTriggered
+                                        || std::isnan(capture->alarmThresholdC)
+                                        || result.maxTemp < capture->alarmThresholdC) {
+                                        return;
+                                    }
+                                    capture->alarmTriggered = true;
+                                    capture->alarmRect = result.rect;
+                                    capture->hasAlarmRect = true;
+                                    if (capture->hasFrame) {
+                                        capture->alarmFrame = capture->frame;
+                                        capture->hasAlarmFrame = true;
+                                        bool pointOk = false;
+                                        capture->alarmPoint = maxTemperaturePointInRect(capture->frame, result.rect, &pointOk);
+                                        capture->hasAlarmPoint = pointOk;
+                                    }
+                                    Logger::log(QStringLiteral("FaultDiag temperature alarm: threshold=%1 current=%2")
+                                                    .arg(capture->alarmThresholdC, 0, 'f', 2)
+                                                    .arg(result.maxTemp, 0, 'f', 2),
+                                                Logger::Level::Warn);
+                                    if (*finishRun) {
+                                        (*finishRun)();
+                                    }
+                                });
 
         QMetaObject::Connection batchConn;
         if (m_runtime && m_runtime->rts()) {
@@ -1867,7 +2097,11 @@ void FaultDiagnostic::runTest(const QString &componentRef,
                                 }, Qt::QueuedConnection);
         }
 
-        QTimer::singleShot(1500, this, [=]() {
+        *finishRun = [=]() {
+            if (capture->finished) {
+                return;
+            }
+            capture->finished = true;
             station->clearSubscriptions(tag);
             disconnect(frameConn);
             disconnect(pointConn);
@@ -1878,16 +2112,29 @@ void FaultDiagnostic::runTest(const QString &componentRef,
 
             if (m_runtime && m_runtime->rts()) {
                 QString stopError;
-                m_runtime->rts()->pauseRun(2000, &stopError);
+                m_runtime->rts()->completeRun(2000, &stopError);
             }
 
             ComponentViewData view;
             view.id = item.componentRef;
             view.name = item.componentRef;
-            if (capture->hasFrame) {
+            if (capture->hasAlarmFrame) {
+                view.thermalImage = capture->alarmFrame.irImage;
+                view.thermalMatrix = capture->alarmFrame.temperatureMatrix;
+                view.thermalMatrixSize = capture->alarmFrame.matrixSize;
+                if (!capture->hasAlarmPoint && capture->hasAlarmRect) {
+                    bool pointOk = false;
+                    capture->alarmPoint = maxTemperaturePointInRect(capture->alarmFrame, capture->alarmRect, &pointOk);
+                    capture->hasAlarmPoint = pointOk;
+                }
+            } else if (capture->hasFrame) {
                 view.thermalImage = capture->frame.irImage;
                 view.thermalMatrix = capture->frame.temperatureMatrix;
                 view.thermalMatrixSize = capture->frame.matrixSize;
+            }
+            view.hasThermalAlarmPoint = capture->alarmTriggered && capture->hasAlarmPoint;
+            if (view.hasThermalAlarmPoint) {
+                view.thermalAlarmPoint = capture->alarmPoint;
             }
 
             QString tempHtml;
@@ -1901,10 +2148,23 @@ void FaultDiagnostic::runTest(const QString &componentRef,
                     .arg(capture->box.maxTemp, 0, 'f', 2);
             }
 
+            if (capture->alarmTriggered) {
+                tempHtml += QStringLiteral("<p>测温区域温度达到或超过预警阈值，测试已停止。</p>");
+            }
+
             DiagnosticInput diagInput;
             diagInput.componentRef = item.componentRef;
             diagInput.componentType = pluginId;
             diagInput.parameters = settings;
+            if (!std::isnan(capture->alarmMaxTempC)) {
+                diagInput.parameters.insert(QStringLiteral("temperatureMaxC"), capture->alarmMaxTempC);
+                diagInput.parameters.insert(QStringLiteral("roiMaxTempC"), capture->alarmMaxTempC);
+                diagInput.parameters.insert(QStringLiteral("tMaxC"), capture->alarmMaxTempC);
+            }
+            diagInput.parameters.insert(QStringLiteral("temperatureAlarmTriggered"), capture->alarmTriggered);
+            if (!std::isnan(capture->alarmThresholdC)) {
+                diagInput.parameters.insert(QStringLiteral("temperatureAlarmThresholdC"), capture->alarmThresholdC);
+            }
             diagInput.timestamp = QDateTime::currentDateTime();
             if (capture->hasBatch) {
                 diagInput.signalSeries = DiagnosticDataMapper::mapSignals(capture->lastBatch, bindings);
@@ -1950,6 +2210,12 @@ void FaultDiagnostic::runTest(const QString &componentRef,
             }
 
             updateComponent(view);
+        };
+        const int timeoutMs = qMax(1500, qMax(1, settings.value(QStringLiteral("captureDurationMs"), 1000).toInt()));
+        QTimer::singleShot(timeoutMs, this, [finishRun]() {
+            if (*finishRun) {
+                (*finishRun)();
+            }
         });
     }
 }
@@ -2068,8 +2334,14 @@ void FaultDiagnostic::refreshThermal(const ComponentViewData &item)
     }
     if (!item.thermalImage.isNull() && !item.thermalMatrix.isEmpty() && item.thermalMatrixSize.isValid()) {
         m_tempView->setInputData(item.thermalImage, item.thermalMatrix, item.thermalMatrixSize);
+        if (item.hasThermalAlarmPoint) {
+            m_tempView->setResultMarker(item.thermalAlarmPoint, QStringLiteral("最高温"));
+        } else {
+            m_tempView->clearResultMarker();
+        }
     } else {
         m_tempView->setInputData(QImage(), {}, QSize());
+        m_tempView->clearResultMarker();
     }
 }
 
