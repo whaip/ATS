@@ -47,6 +47,7 @@ JYDeviceConfig build5711InitConfig()
     wf.amplitude = 0.0;
     wf.frequency = 0.0;
     wf.dutyCycle = 1.0;
+    wf.syncParamsFromLegacy();
     config.cfg5711.waveforms = {wf};
     return config;
 }

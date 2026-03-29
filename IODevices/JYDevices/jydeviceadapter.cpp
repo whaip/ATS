@@ -6,6 +6,7 @@
 #include "../../logger.h"
 #include "JY5710.h"
 #include "JY8902.h"
+#include <algorithm>
 #include <cmath>
 #include <vector>
 #include <QDebug>
@@ -448,10 +449,14 @@ private:
         for (int i = 0; i < samples; ++i) {
             for (int ch = 0; ch < m_cfg.channelCount; ++ch) {
                 const int idx = i * m_cfg.channelCount + ch;
+                const auto cfgIt = std::find_if(m_cfg.waveforms.cbegin(),
+                                                m_cfg.waveforms.cend(),
+                                                [ch](const JY5711WaveformConfig &cfg) { return cfg.channel == ch; });
+                const double offset = (cfgIt != m_cfg.waveforms.cend()) ? cfgIt->offset : 0.0;
                 if (waveforms[static_cast<size_t>(ch)]) {
-                    m_waveBuffer[idx] = waveforms[static_cast<size_t>(ch)]->generate(i, static_cast<int>(m_cfg.sampleRate));
+                    m_waveBuffer[idx] = waveforms[static_cast<size_t>(ch)]->generate(i, static_cast<int>(m_cfg.sampleRate)) + offset;
                 } else {
-                    m_waveBuffer[idx] = 0.0;
+                    m_waveBuffer[idx] = offset;
                 }
             }
         }

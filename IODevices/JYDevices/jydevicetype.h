@@ -5,6 +5,7 @@
 #include <QVector>
 #include <QMap>
 #include <QtGlobal>
+#include <cmath>
 
 #include "5711waveformconfig.h"
 
@@ -40,6 +41,8 @@ struct JY5711WaveformConfig {
 	double amplitude = 0.0;
 	double frequency = 0.0;
 	double dutyCycle = 0.5;
+	double offset = 0.0;
+	QMap<QString, double> params;
 
 	double pulseVLow = 0.0;
 	double pulseVHigh = 0.0;
@@ -61,6 +64,7 @@ struct JY5711WaveformConfig {
 		pulseTDelay = synced.pulseTDelay;
 		pulseTOn = synced.pulseTOn;
 		pulseTPeriod = synced.pulseTPeriod;
+		syncParamsFromLegacy();
 	}
 
 	void setPulseTiming(double vLow, double vHigh, double tDelaySec, double tOnSec, double tPeriodSec)
@@ -77,13 +81,73 @@ struct JY5711WaveformConfig {
 		frequency = synced.frequency;
 		dutyCycle = synced.dutyCycle;
 		pulseTOn = synced.pulseTOn;
+		syncParamsFromLegacy();
+	}
+
+	void syncParamsFromLegacy()
+	{
+		if (params.isEmpty()) {
+			params = PXIe5711_default_param_map(type);
+		}
+		params.insert(QStringLiteral("amplitude"), amplitude);
+		params.insert(QStringLiteral("frequency"), frequency);
+		params.insert(QStringLiteral("dutyCycle"), dutyCycle);
+		params.insert(QStringLiteral("offset"), offset);
+		params.insert(QStringLiteral("pulseVLow"), pulseVLow);
+		params.insert(QStringLiteral("pulseVHigh"), pulseVHigh);
+		params.insert(QStringLiteral("pulseTDelay"), pulseTDelay);
+		params.insert(QStringLiteral("pulseTOn"), pulseTOn);
+		params.insert(QStringLiteral("pulseTPeriod"), pulseTPeriod);
+		params.insert(QStringLiteral("pulseUseTiming"), pulseUseTiming ? 1.0 : 0.0);
+	}
+
+	void syncLegacyFromParams()
+	{
+		if (params.isEmpty()) {
+			syncParamsFromLegacy();
+			return;
+		}
+
+		offset = PXIe5711_param_value(params, QStringLiteral("offset"), offset);
+		if (type == PXIe5711_testtype::PulseWave) {
+			pulseVLow = PXIe5711_param_value(params, QStringLiteral("pulseVLow"), pulseVLow);
+			pulseVHigh = PXIe5711_param_value(params, QStringLiteral("pulseVHigh"), pulseVHigh);
+			pulseTDelay = qMax(0.0, PXIe5711_param_value(params, QStringLiteral("pulseTDelay"), pulseTDelay));
+			pulseTOn = qMax(0.0, PXIe5711_param_value(params, QStringLiteral("pulseTOn"), pulseTOn));
+			pulseTPeriod = qMax(0.0, PXIe5711_param_value(params, QStringLiteral("pulseTPeriod"), pulseTPeriod));
+			amplitude = PXIe5711_param_value(params, QStringLiteral("amplitude"), amplitude);
+			frequency = PXIe5711_param_value(params, QStringLiteral("frequency"), frequency);
+			dutyCycle = PXIe5711_param_value(params, QStringLiteral("dutyCycle"), dutyCycle);
+			const bool hasTiming = (pulseTPeriod > 0.0)
+				|| (pulseTOn > 0.0)
+				|| (pulseTDelay > 0.0)
+				|| (std::fabs(pulseVLow) > 1e-12)
+				|| (std::fabs(pulseVHigh) > 1e-12);
+			pulseUseTiming = hasTiming;
+			if (pulseUseTiming) {
+				if (std::fabs(pulseVHigh) <= 1e-12) {
+					pulseVHigh = amplitude;
+				}
+				frequency = (pulseTPeriod > 0.0) ? (1.0 / pulseTPeriod) : 0.0;
+				dutyCycle = (pulseTPeriod > 0.0) ? (pulseTOn / pulseTPeriod) : 0.0;
+				amplitude = pulseVHigh;
+			}
+			return;
+		}
+
+		amplitude = PXIe5711_param_value(params, QStringLiteral("amplitude"), amplitude);
+		frequency = PXIe5711_param_value(params, QStringLiteral("frequency"), frequency);
+		dutyCycle = PXIe5711_param_value(params, QStringLiteral("dutyCycle"), dutyCycle);
+		pulseUseTiming = false;
 	}
 
 	JY5711WaveformConfig normalized() const
 	{
 		JY5711WaveformConfig cfg = *this;
+		cfg.syncLegacyFromParams();
 		if (cfg.type != PXIe5711_testtype::PulseWave) {
 			cfg.pulseUseTiming = false;
+			cfg.syncParamsFromLegacy();
 			return cfg;
 		}
 
@@ -96,6 +160,7 @@ struct JY5711WaveformConfig {
 			cfg.pulseTDelay = 0.0;
 			cfg.pulseTPeriod = period;
 			cfg.pulseTOn = (period > 0.0) ? (safeDuty * period) : 0.0;
+			cfg.syncParamsFromLegacy();
 			return cfg;
 		}
 
@@ -109,6 +174,7 @@ struct JY5711WaveformConfig {
 			cfg.amplitude = cfg.pulseVHigh;
 			cfg.dutyCycle = (cfg.pulseTPeriod > 0.0) ? (cfg.pulseTOn / cfg.pulseTPeriod) : 0.0;
 		}
+		cfg.syncParamsFromLegacy();
 		return cfg;
 	}
 };

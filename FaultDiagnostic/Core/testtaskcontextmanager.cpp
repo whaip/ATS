@@ -369,12 +369,18 @@ QJsonObject TestTaskContextManager::configToJson(const JYDeviceConfig &config)
         item.insert(QStringLiteral("amplitude"), waveform.amplitude);
         item.insert(QStringLiteral("frequency"), waveform.frequency);
         item.insert(QStringLiteral("dutyCycle"), waveform.dutyCycle);
+        item.insert(QStringLiteral("offset"), waveform.offset);
         item.insert(QStringLiteral("pulseVLow"), waveform.pulseVLow);
         item.insert(QStringLiteral("pulseVHigh"), waveform.pulseVHigh);
         item.insert(QStringLiteral("pulseTDelay"), waveform.pulseTDelay);
         item.insert(QStringLiteral("pulseTOn"), waveform.pulseTOn);
         item.insert(QStringLiteral("pulseTPeriod"), waveform.pulseTPeriod);
         item.insert(QStringLiteral("pulseUseTiming"), waveform.pulseUseTiming);
+        QJsonObject params;
+        for (auto it = waveform.params.cbegin(); it != waveform.params.cend(); ++it) {
+            params.insert(it.key(), it.value());
+        }
+        item.insert(QStringLiteral("params"), params);
         waveforms.append(item);
     }
     c5711.insert(QStringLiteral("waveforms"), waveforms);

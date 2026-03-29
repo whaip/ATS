@@ -1,21 +1,23 @@
 #include "datageneratecard.h"
 #include "ui_datageneratecard.h"
 
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QEvent>
+#include <QFile>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLayout>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QDoubleSpinBox>
 #include <QVBoxLayout>
-#include <QFile>
 
 #include "../JYDevices/jythreadmanager.h"
 #include "../JYDevices/jydeviceworker.h"
@@ -26,12 +28,38 @@ QString channelTitle(int channel)
     return QStringLiteral("CH%1").arg(channel, 2, 10, QChar('0'));
 }
 
-QString channelModeText(int channel)
+QString channelTypeText(int channel)
 {
-    if (channel <= 15) {
-        return QStringLiteral("电流输出");
+    return (channel <= 15) ? QStringLiteral("电流输出") : QStringLiteral("电压输出");
+}
+
+QString stoppedStatusText()
+{
+    return QStringLiteral("未启动");
+}
+
+QString waveformSummaryText(const JY5711WaveformConfig &config)
+{
+    const JY5711WaveformConfig normalized = config.normalized();
+    const auto specs = PXIe5711_waveform_param_specs(normalized.type);
+    QStringList parts;
+    for (const auto &spec : specs) {
+        const double value = PXIe5711_param_value(normalized.params, spec.key, spec.defaultValue);
+        parts.push_back(QStringLiteral("%1 %2%3")
+                            .arg(spec.label)
+                            .arg(value, 0, 'f', spec.decimals)
+                            .arg(spec.suffix));
+        if (parts.size() >= 4) {
+            break;
+        }
     }
-    return QStringLiteral("电压输出");
+
+    if (parts.isEmpty()) {
+        return PXIe5711_testtype_to_string(normalized.type);
+    }
+    return QStringLiteral("%1 | %2")
+        .arg(PXIe5711_testtype_to_string(normalized.type))
+        .arg(parts.join(QStringLiteral(" | ")));
 }
 }
 
@@ -74,56 +102,58 @@ void DataGenerateCard::buildUi()
     applyThemeQss();
     buildChannels();
 
-    if (m_btnStart) {
-        connect(m_btnStart, &QPushButton::clicked, this, [this]() {
-            const bool isStopping = (m_btnStart->text() == QStringLiteral("停止输出"));
-            if (isStopping) {
-                for (auto it = m_channelWidgets.begin(); it != m_channelWidgets.end(); ++it) {
-                    updateChannelStatus(it.key(), QStringLiteral("已停止"));
-                }
-                if (m_worker5711) {
-                    m_worker5711->postStop();
-                }
-                m_btnStart->setText(QStringLiteral("开始输出"));
-                emit stopOutputRequested();
-                return;
-            }
-
-            QVector<int> selected;
-            for (auto it = m_channelWidgets.begin(); it != m_channelWidgets.end(); ++it) {
-                if (it.value().select && it.value().select->isChecked()) {
-                    selected.push_back(it.key());
-                }
-            }
-
-            if (selected.isEmpty()) {
-                QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请先选择需要输出的通道"));
-                return;
-            }
-
-            if (m_manager && !m_manager->isDeviceInitialized(JYDeviceKind::PXIe5711)) {
-                QMessageBox::warning(this, QStringLiteral("提示"), QStringLiteral("JY5711 未初始化，无法开始输出"));
-                return;
-            }
-
-            for (int ch : selected) {
-                updateChannelStatus(ch, QStringLiteral("输出中"));
-            }
-
-            if (m_manager) {
-                ensure5711Worker();
-                if (m_worker5711) {
-                    const JYDeviceConfig cfg = build5711Config(selected);
-                    m_worker5711->postConfigure(cfg);
-                    m_worker5711->postStart();
-                    m_worker5711->postTrigger();
-                }
-            }
-
-            m_btnStart->setText(QStringLiteral("停止输出"));
-            emit startOutputRequested(selected);
-        });
+    if (!m_btnStart) {
+        return;
     }
+
+    connect(m_btnStart, &QPushButton::clicked, this, [this]() {
+        const bool isStopping = (m_btnStart->text() == QStringLiteral("停止输出"));
+        if (isStopping) {
+            for (auto it = m_channelWidgets.begin(); it != m_channelWidgets.end(); ++it) {
+                updateChannelStatus(it.key(), QStringLiteral("已停止"));
+            }
+            if (m_worker5711) {
+                m_worker5711->postStop();
+            }
+            m_btnStart->setText(QStringLiteral("开始输出"));
+            emit stopOutputRequested();
+            return;
+        }
+
+        QVector<int> selected;
+        for (auto it = m_channelWidgets.begin(); it != m_channelWidgets.end(); ++it) {
+            if (it.value().select && it.value().select->isChecked()) {
+                selected.push_back(it.key());
+            }
+        }
+
+        if (selected.isEmpty()) {
+            QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请至少选择一个通道。"));
+            return;
+        }
+
+        if (m_manager && !m_manager->isDeviceInitialized(JYDeviceKind::PXIe5711)) {
+            QMessageBox::warning(this, QStringLiteral("提示"), QStringLiteral("JY5711 未初始化。"));
+            return;
+        }
+
+        for (int ch : selected) {
+            updateChannelStatus(ch, QStringLiteral("输出中"));
+        }
+
+        if (m_manager) {
+            ensure5711Worker();
+            if (m_worker5711) {
+                const JYDeviceConfig cfg = build5711Config(selected);
+                m_worker5711->postConfigure(cfg);
+                m_worker5711->postStart();
+                m_worker5711->postTrigger();
+            }
+        }
+
+        m_btnStart->setText(QStringLiteral("停止输出"));
+        emit startOutputRequested(selected);
+    });
 }
 
 void DataGenerateCard::ensure5711Worker()
@@ -148,34 +178,19 @@ JYDeviceConfig DataGenerateCard::build5711Config(const QVector<int> &channels) c
     int maxChannel = -1;
     for (int ch : channels) {
         cfg5711.enabledChannels.push_back(ch);
-        if (ch > maxChannel) {
-            maxChannel = ch;
-        }
+        maxChannel = qMax(maxChannel, ch);
     }
-    cfg5711.channelCount = maxChannel + 1;
-    if (cfg5711.channelCount <= 0) {
-        cfg5711.channelCount = 1;
-    }
+    cfg5711.channelCount = qMax(1, maxChannel + 1);
 
     for (int ch : channels) {
         const auto cfgIt = m_channelConfigs.find(ch);
         if (cfgIt == m_channelConfigs.end()) {
             continue;
         }
-        const ChannelConfig &src = cfgIt.value();
-        JY5711WaveformConfig wf;
+
+        JY5711WaveformConfig wf = cfgIt.value().waveform;
         wf.channel = ch;
-        if (src.mode == ChannelConfig::Mode::Current) {
-            wf.type = PXIe5711_testtype::HighLevelWave;
-            wf.amplitude = src.currentMa;
-            wf.frequency = 0.0;
-            wf.dutyCycle = 1.0;
-        } else {
-            wf.type = src.waveform;
-            wf.amplitude = src.amplitude;
-            wf.frequency = src.frequency;
-            wf.dutyCycle = src.duty;
-        }
+        wf.syncLegacyFromParams();
         cfg5711.waveforms.push_back(wf);
     }
 
@@ -192,6 +207,7 @@ void DataGenerateCard::applyThemeQss()
     if (!theme.isEmpty() && theme == m_loadedTheme) {
         return;
     }
+
     const QString qssPath = (theme == QStringLiteral("light"))
         ? QStringLiteral(":/styles/datageneratecard_light.qss")
         : QStringLiteral(":/styles/datageneratecard_dark.qss");
@@ -231,6 +247,9 @@ void DataGenerateCard::buildChannels()
     for (int ch = 0; ch < totalChannels; ++ch) {
         ChannelConfig cfg;
         cfg.mode = (ch <= 15) ? ChannelConfig::Mode::Current : ChannelConfig::Mode::Voltage;
+        cfg.waveform.type = PXIe5711_testtype::SineWave;
+        cfg.waveform.params = PXIe5711_default_param_map(cfg.waveform.type);
+        cfg.waveform.syncLegacyFromParams();
         m_channelConfigs.insert(ch, cfg);
 
         ChannelWidgets widgets = createChannelCard(ch);
@@ -240,7 +259,7 @@ void DataGenerateCard::buildChannels()
         const int col = ch % columns;
         m_channelsLayout->addWidget(widgets.frame, row, col);
         updateChannelSummary(ch);
-        updateChannelStatus(ch, QStringLiteral("未输出"));
+        updateChannelStatus(ch, stoppedStatusText());
     }
 }
 
@@ -251,6 +270,7 @@ DataGenerateCard::ChannelWidgets DataGenerateCard::createChannelCard(int channel
     if (ui && ui->scrollAreaWidgetContents) {
         parentWidget = ui->scrollAreaWidgetContents;
     }
+
     widgets.frame = new QFrame(parentWidget);
     widgets.frame->setObjectName(QStringLiteral("channelCard_%1").arg(channel));
     widgets.frame->setProperty("channelCard", true);
@@ -264,16 +284,16 @@ DataGenerateCard::ChannelWidgets DataGenerateCard::createChannelCard(int channel
     layout->setSpacing(4);
 
     auto *topRow = new QHBoxLayout();
-    widgets.title = new QLabel(QStringLiteral("%1").arg(channelTitle(channel)), widgets.frame);
+    widgets.title = new QLabel(channelTitle(channel), widgets.frame);
     widgets.title->setStyleSheet(QStringLiteral("font-weight:600;"));
     widgets.select = new QCheckBox(QStringLiteral("选择"), widgets.frame);
     topRow->addWidget(widgets.title);
     topRow->addStretch();
     topRow->addWidget(widgets.select);
 
-    widgets.summary = new QLabel(QStringLiteral("%1").arg(channelModeText(channel)), widgets.frame);
+    widgets.summary = new QLabel(channelTypeText(channel), widgets.frame);
     widgets.summary->setObjectName(QStringLiteral("labelSummary"));
-    widgets.status = new QLabel(QStringLiteral("未输出"), widgets.frame);
+    widgets.status = new QLabel(stoppedStatusText(), widgets.frame);
     widgets.status->setObjectName(QStringLiteral("labelStatus"));
 
     layout->addLayout(topRow);
@@ -291,20 +311,11 @@ void DataGenerateCard::updateChannelSummary(int channel)
 
     const ChannelConfig &cfg = m_channelConfigs[channel];
     ChannelWidgets &widgets = m_channelWidgets[channel];
-
     if (!widgets.summary) {
         return;
     }
 
-    if (cfg.mode == ChannelConfig::Mode::Current) {
-        widgets.summary->setText(QStringLiteral("电流: %1 mA").arg(cfg.currentMa, 0, 'f', 2));
-    } else {
-        widgets.summary->setText(QStringLiteral("%1 | 幅值%2 | 占空比%3 | 频率%4")
-                                 .arg(PXIe5711_testtype_to_string(cfg.waveform))
-                                 .arg(cfg.amplitude, 0, 'f', 2)
-                                 .arg(cfg.duty, 0, 'f', 2)
-                                 .arg(cfg.frequency, 0, 'f', 0));
-    }
+    widgets.summary->setText(waveformSummaryText(cfg.waveform));
 }
 
 void DataGenerateCard::updateChannelStatus(int channel, const QString &text)
@@ -326,70 +337,71 @@ void DataGenerateCard::openChannelEditor(int channel)
     }
 
     ChannelConfig cfg = m_channelConfigs[channel];
+    const JY5711WaveformConfig normalized = cfg.waveform.normalized();
+
     QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("编辑 %1 输出参数").arg(channelTitle(channel)));
+    dialog.setWindowTitle(QStringLiteral("配置 %1").arg(channelTitle(channel)));
     dialog.setModal(true);
 
     auto *layout = new QVBoxLayout(&dialog);
-    auto *form = new QFormLayout();
+    layout->setSizeConstraint(QLayout::SetFixedSize);
 
-    if (cfg.mode == ChannelConfig::Mode::Current) {
-        auto *currentSpin = new QDoubleSpinBox(&dialog);
-        currentSpin->setRange(4.0, 20.0);
-        currentSpin->setDecimals(2);
-        currentSpin->setSuffix(QStringLiteral(" mA"));
-        currentSpin->setValue(cfg.currentMa);
-        form->addRow(QStringLiteral("电流大小"), currentSpin);
-
-        layout->addLayout(form);
-
-        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-        layout->addWidget(buttons);
-        connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
-        if (dialog.exec() == QDialog::Accepted) {
-            cfg.currentMa = currentSpin->value();
-            m_channelConfigs[channel] = cfg;
-            updateChannelSummary(channel);
-        }
-        return;
-    }
-
+    auto *headForm = new QFormLayout();
     auto *waveformBox = new QComboBox(&dialog);
     const auto options = waveformOptions();
     for (const auto &opt : options) {
         waveformBox->addItem(PXIe5711_testtype_to_string(opt), static_cast<int>(opt));
     }
-    waveformBox->setCurrentText(PXIe5711_testtype_to_string(cfg.waveform));
+    waveformBox->setCurrentText(PXIe5711_testtype_to_string(normalized.type));
+    headForm->addRow(QStringLiteral("波形类型"), waveformBox);
+    layout->addLayout(headForm);
 
-    auto *amplitudeSpin = new QDoubleSpinBox(&dialog);
-    amplitudeSpin->setRange(0.0, 10.0);
-    amplitudeSpin->setDecimals(3);
-    amplitudeSpin->setValue(cfg.amplitude);
+    auto *dynamicWidget = new QWidget(&dialog);
+    auto *dynamicForm = new QFormLayout(dynamicWidget);
+    dynamicForm->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(dynamicWidget);
 
-    auto *dutySpin = new QDoubleSpinBox(&dialog);
-    dutySpin->setRange(0.0, 1.0);
-    dutySpin->setDecimals(3);
-    dutySpin->setValue(cfg.duty);
+    QMap<QString, QDoubleSpinBox *> editors;
+    auto rebuildEditors = [&](PXIe5711_testtype type, const QMap<QString, double> &values) {
+        while (dynamicForm->rowCount() > 0) {
+            dynamicForm->removeRow(0);
+        }
+        editors.clear();
 
-    auto *freqSpin = new QDoubleSpinBox(&dialog);
-    freqSpin->setRange(1.0, 100000.0);
-    freqSpin->setDecimals(1);
-    freqSpin->setValue(cfg.frequency);
+        const auto specs = PXIe5711_waveform_param_specs(type);
+        for (const auto &spec : specs) {
+            auto *spin = new QDoubleSpinBox(dynamicWidget);
+            spin->setRange(spec.minValue, spec.maxValue);
+            spin->setDecimals(spec.decimals);
+            spin->setSuffix(spec.suffix);
+            spin->setValue(PXIe5711_param_value(values, spec.key, spec.defaultValue));
+            dynamicForm->addRow(spec.label, spin);
+            editors.insert(spec.key, spin);
+        }
 
-    auto *offsetSpin = new QDoubleSpinBox(&dialog);
-    offsetSpin->setRange(-20.0, 20.0);
-    offsetSpin->setDecimals(3);
-    offsetSpin->setValue(cfg.offset);
+        dynamicWidget->adjustSize();
+        dynamicWidget->updateGeometry();
+        layout->activate();
+        dialog.adjustSize();
+        dialog.resize(dialog.sizeHint());
+    };
 
-    form->addRow(QStringLiteral("波形类型"), waveformBox);
-    form->addRow(QStringLiteral("幅值"), amplitudeSpin);
-    form->addRow(QStringLiteral("占空比"), dutySpin);
-    form->addRow(QStringLiteral("频率"), freqSpin);
-    form->addRow(QStringLiteral("偏置"), offsetSpin);
+    rebuildEditors(normalized.type, normalized.params);
+    connect(waveformBox, &QComboBox::currentIndexChanged, &dialog, [&]() {
+        QMap<QString, double> currentValues;
+        for (auto it = editors.cbegin(); it != editors.cend(); ++it) {
+            currentValues.insert(it.key(), it.value()->value());
+        }
 
-    layout->addLayout(form);
+        const auto type = static_cast<PXIe5711_testtype>(waveformBox->currentData().toInt());
+        QMap<QString, double> nextValues = PXIe5711_default_param_map(type);
+        for (auto it = currentValues.cbegin(); it != currentValues.cend(); ++it) {
+            if (nextValues.contains(it.key())) {
+                nextValues[it.key()] = it.value();
+            }
+        }
+        rebuildEditors(type, nextValues);
+    });
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     layout->addWidget(buttons);
@@ -397,11 +409,12 @@ void DataGenerateCard::openChannelEditor(int channel)
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
     if (dialog.exec() == QDialog::Accepted) {
-        cfg.waveform = static_cast<PXIe5711_testtype>(waveformBox->currentData().toInt());
-        cfg.amplitude = amplitudeSpin->value();
-        cfg.duty = dutySpin->value();
-        cfg.frequency = freqSpin->value();
-        cfg.offset = offsetSpin->value();
+        cfg.waveform.type = static_cast<PXIe5711_testtype>(waveformBox->currentData().toInt());
+        cfg.waveform.params = PXIe5711_default_param_map(cfg.waveform.type);
+        for (auto it = editors.cbegin(); it != editors.cend(); ++it) {
+            cfg.waveform.params.insert(it.key(), it.value()->value());
+        }
+        cfg.waveform.syncLegacyFromParams();
         m_channelConfigs[channel] = cfg;
         updateChannelSummary(channel);
     }
