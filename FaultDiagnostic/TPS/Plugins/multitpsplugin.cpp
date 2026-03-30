@@ -6,16 +6,6 @@
 #include "../../../IODevices/JYDevices/jydeviceconfigutils.h"
 
 namespace {
-PXIe5711_testtype waveformFromString(const QString &value)
-{
-    for (const auto &option : PXIe5711_waveform_options()) {
-        if (PXIe5711_testtype_to_string(option).compare(value, Qt::CaseInsensitive) == 0) {
-            return option;
-        }
-    }
-    return PXIe5711_testtype::HighLevelWave;
-}
-
 QString deviceKindName(JYDeviceKind kind)
 {
     switch (kind) {
@@ -128,11 +118,11 @@ TPSPluginRequirement MultiSignalTpsPlugin::requirements() const
     captureMs.stepValue = 10;
     requirement.parameters.push_back(captureMs);
 
-    const QVector<PXIe5711_testtype> waveformOptions = PXIe5711_waveform_options();
     QStringList waveformNames;
-    waveformNames.reserve(waveformOptions.size());
-    for (const auto &waveform : waveformOptions) {
-        waveformNames.push_back(PXIe5711_testtype_to_string(waveform));
+    const auto &registry = PXIe5711_waveform_registry();
+    waveformNames.reserve(registry.size());
+    for (const auto &waveform : registry) {
+        waveformNames.push_back(waveform.displayName);
     }
 
     auto addPortParams = [&](const QString &identifier,
@@ -143,7 +133,7 @@ TPSPluginRequirement MultiSignalTpsPlugin::requirements() const
         waveform.label = QStringLiteral("%1波形").arg(labelPrefix);
         waveform.type = TPSParamType::Enum;
         waveform.enumOptions = waveformNames;
-        waveform.defaultValue = waveform.enumOptions.value(0);
+        waveform.defaultValue = PXIe5711_waveform_display_name(QStringLiteral("HighLevelWave"));
 
         TPSParamDefinition amplitude;
         amplitude.key = QStringLiteral("%1.amplitude").arg(identifier);
@@ -281,17 +271,20 @@ bool MultiSignalTpsPlugin::buildDevicePlan(const QVector<TPSPortBinding> &bindin
             const QString freqKey = QStringLiteral("%1.frequency").arg(prefix);
             const QString dutyKey = QStringLiteral("%1.duty").arg(prefix);
 
-            const QString waveformName = settings.value(waveformKey, QStringLiteral("HighLevelWave")).toString();
+            const QString waveformId = PXIe5711_resolve_waveform_id(
+                settings.value(waveformKey, PXIe5711_waveform_display_name(QStringLiteral("HighLevelWave"))).toString());
             const double amplitude = settings.value(ampKey, 1.0).toDouble();
             const double frequency = settings.value(freqKey, 1000.0).toDouble();
             const double duty = settings.value(dutyKey, 0.5).toDouble();
 
-            JY5711WaveformConfig config;
-            config.channel = binding.channel;
-            config.type = waveformFromString(waveformName);
-            config.amplitude = amplitude;
-            config.frequency = frequency;
-            config.dutyCycle = duty;
+            JY5711WaveformConfig config = build5711WaveformConfig(
+                binding.channel,
+                waveformId,
+                PXIe5711_make_params({
+                    {"amplitude", amplitude},
+                    {"frequency", frequency},
+                    {"dutyCycle", duty},
+                }));
 
             devicePlan.cfg5711.cfg5711.enabledChannels.push_back(binding.channel);
             devicePlan.cfg5711.cfg5711.waveforms.push_back(config);

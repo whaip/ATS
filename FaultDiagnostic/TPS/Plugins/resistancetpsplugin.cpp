@@ -335,13 +335,13 @@ bool ResistanceTpsPlugin::configure(const QMap<QString, QVariant> &settings, QSt
     m_config5711.cfg5711.enabledChannels = {outputBinding->channel};
     m_config5711.cfg5711.waveforms.clear();
 
-    JY5711WaveformConfig outputWave;
-    outputWave.channel = outputBinding->channel;
-    outputWave.type = PXIe5711_testtype::HighLevelWave;
-    outputWave.amplitude = 2.0;
-    outputWave.frequency = 1000.0;
-    outputWave.dutyCycle = 0.5;
-    m_config5711.cfg5711.waveforms.push_back(outputWave);
+    m_config5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(outputBinding->channel,
+                                QStringLiteral("HighLevelWave"),
+                                PXIe5711_make_params({
+                                    {"amplitude", 2.0},
+                                    {"frequency", 1000.0},
+                                })));
 
     m_configReady = true;
     return true;

@@ -346,13 +346,13 @@ bool CapacitorTpsPlugin::buildDevicePlan(const QVector<TPSPortBinding> &bindings
     const double amplitude = settings.value(QStringLiteral("stimulusAmplitudeV"), 2.0).toDouble();
     const double frequency = settings.value(QStringLiteral("stimulusFrequencyHz"), 100.0).toDouble();
 
-    JY5711WaveformConfig wave;
-    wave.channel = output->channel;
-    wave.type = PXIe5711_testtype::HighLevelWave;
-    wave.amplitude = amplitude;
-    wave.frequency = frequency;
-    wave.dutyCycle = 0.5;
-    devicePlan.cfg5711.cfg5711.waveforms.push_back(wave);
+    devicePlan.cfg5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(output->channel,
+                                QStringLiteral("HighLevelWave"),
+                                PXIe5711_make_params({
+                                    {"amplitude", amplitude},
+                                    {"frequency", frequency},
+                                })));
 
     TPSSignalRequest outReq;
     outReq.id = output->identifier;
@@ -421,13 +421,13 @@ bool CapacitorTpsPlugin::configure(const QMap<QString, QVariant> &settings, QStr
     m_config5711.cfg5711.enabledChannels = {output->channel};
     m_config5711.cfg5711.waveforms.clear();
 
-    JY5711WaveformConfig wave;
-    wave.channel = output->channel;
-    wave.type = PXIe5711_testtype::HighLevelWave;
-    wave.amplitude = amplitude;
-    wave.frequency = frequency;
-    wave.dutyCycle = 0.5;
-    m_config5711.cfg5711.waveforms.push_back(wave);
+    m_config5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(output->channel,
+                                QStringLiteral("HighLevelWave"),
+                                PXIe5711_make_params({
+                                    {"amplitude", amplitude},
+                                    {"frequency", frequency},
+                                })));
 
     m_configReady = true;
     return true;

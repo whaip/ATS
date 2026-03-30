@@ -230,13 +230,14 @@ bool InductorTpsPlugin::buildDevicePlan(const QVector<TPSPortBinding> &bindings,
     devicePlan.cfg8902.cfg8902.sampleCount = 0;
     devicePlan.cfg8902.cfg8902.slotNumber = -1;
 
-    JY5711WaveformConfig wave;
-    wave.channel = output->channel;
-    wave.type = PXIe5711_testtype::SquareWave;
-    wave.amplitude = kFixedStimulusAmplitudeV;
-    wave.frequency = kFixedStimulusFrequencyHz;
-    wave.dutyCycle = kFixedDutyCycle;
-    devicePlan.cfg5711.cfg5711.waveforms.push_back(wave);
+    devicePlan.cfg5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(output->channel,
+                                QStringLiteral("SquareWave"),
+                                PXIe5711_make_params({
+                                    {"amplitude", kFixedStimulusAmplitudeV},
+                                    {"frequency", kFixedStimulusFrequencyHz},
+                                    {"dutyCycle", kFixedDutyCycle},
+                                })));
 
     TPSSignalRequest outputReq;
     outputReq.id = output->identifier;
@@ -325,13 +326,14 @@ bool InductorTpsPlugin::configure(const QMap<QString, QVariant> &settings, QStri
     m_config5711.cfg5711.enabledChannels = {output->channel};
     m_config5711.cfg5711.waveforms.clear();
 
-    JY5711WaveformConfig wave;
-    wave.channel = output->channel;
-    wave.type = PXIe5711_testtype::SquareWave;
-    wave.amplitude = kFixedStimulusAmplitudeV;
-    wave.frequency = kFixedStimulusFrequencyHz;
-    wave.dutyCycle = kFixedDutyCycle;
-    m_config5711.cfg5711.waveforms.push_back(wave);
+    m_config5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(output->channel,
+                                QStringLiteral("SquareWave"),
+                                PXIe5711_make_params({
+                                    {"amplitude", kFixedStimulusAmplitudeV},
+                                    {"frequency", kFixedStimulusFrequencyHz},
+                                    {"dutyCycle", kFixedDutyCycle},
+                                })));
 
     m_configReady = true;
     return true;

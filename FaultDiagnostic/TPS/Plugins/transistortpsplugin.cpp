@@ -434,21 +434,22 @@ bool TransistorTpsPlugin::buildDevicePlan(const QVector<TPSPortBinding> &binding
     devicePlan.cfg5711.cfg5711.enabledChannels = {driveOut->channel, vccOut->channel};
     devicePlan.cfg5711.cfg5711.waveforms.clear();
 
-    JY5711WaveformConfig driveWave;
-    driveWave.channel = driveOut->channel;
-    driveWave.type = PXIe5711_testtype::SquareWave;
-    driveWave.amplitude = vdrv;
-    driveWave.frequency = frequency;
-    driveWave.dutyCycle = duty;
-    devicePlan.cfg5711.cfg5711.waveforms.push_back(driveWave);
+    devicePlan.cfg5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(driveOut->channel,
+                                QStringLiteral("SquareWave"),
+                                PXIe5711_make_params({
+                                    {"amplitude", vdrv},
+                                    {"frequency", frequency},
+                                    {"dutyCycle", duty},
+                                })));
 
-    JY5711WaveformConfig vccWave;
-    vccWave.channel = vccOut->channel;
-    vccWave.type = PXIe5711_testtype::HighLevelWave;
-    vccWave.amplitude = vcc;
-    vccWave.frequency = frequency;
-    vccWave.dutyCycle = 1.0;
-    devicePlan.cfg5711.cfg5711.waveforms.push_back(vccWave);
+    devicePlan.cfg5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(vccOut->channel,
+                                QStringLiteral("HighLevelWave"),
+                                PXIe5711_make_params({
+                                    {"amplitude", vcc},
+                                    {"frequency", frequency},
+                                })));
 
     devicePlan.cfg8902.cfg8902.sampleCount = 0;
     devicePlan.cfg8902.cfg8902.slotNumber = -1;
@@ -548,21 +549,22 @@ bool TransistorTpsPlugin::configure(const QMap<QString, QVariant> &settings, QSt
     m_config5711.cfg5711.enabledChannels = {driveOut->channel, vccOut->channel};
     m_config5711.cfg5711.waveforms.clear();
 
-    JY5711WaveformConfig driveWave;
-    driveWave.channel = driveOut->channel;
-    driveWave.type = PXIe5711_testtype::SquareWave;
-    driveWave.amplitude = vdrv;
-    driveWave.frequency = frequency;
-    driveWave.dutyCycle = duty;
-    m_config5711.cfg5711.waveforms.push_back(driveWave);
+    m_config5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(driveOut->channel,
+                                QStringLiteral("SquareWave"),
+                                PXIe5711_make_params({
+                                    {"amplitude", vdrv},
+                                    {"frequency", frequency},
+                                    {"dutyCycle", duty},
+                                })));
 
-    JY5711WaveformConfig vccWave;
-    vccWave.channel = vccOut->channel;
-    vccWave.type = PXIe5711_testtype::HighLevelWave;
-    vccWave.amplitude = vcc;
-    vccWave.frequency = frequency;
-    vccWave.dutyCycle = 1.0;
-    m_config5711.cfg5711.waveforms.push_back(vccWave);
+    m_config5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(vccOut->channel,
+                                QStringLiteral("HighLevelWave"),
+                                PXIe5711_make_params({
+                                    {"amplitude", vcc},
+                                    {"frequency", frequency},
+                                })));
 
     m_configReady = true;
     return true;

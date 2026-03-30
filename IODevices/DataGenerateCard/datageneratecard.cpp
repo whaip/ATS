@@ -17,10 +17,11 @@
 #include <QLayout>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QStringList>
 #include <QVBoxLayout>
 
-#include "../JYDevices/jythreadmanager.h"
 #include "../JYDevices/jydeviceworker.h"
+#include "../JYDevices/jythreadmanager.h"
 
 namespace {
 QString channelTitle(int channel)
@@ -38,13 +39,15 @@ QString stoppedStatusText()
     return QStringLiteral("未启动");
 }
 
-QString waveformSummaryText(const JY5711WaveformConfig &config)
+QString waveformSummaryText(const JY5711WaveformConfig &rawConfig)
 {
-    const JY5711WaveformConfig normalized = config.normalized();
-    const auto specs = PXIe5711_waveform_param_specs(normalized.type);
+    JY5711WaveformConfig config = rawConfig;
+    config.ensureValid();
+
     QStringList parts;
+    const auto specs = PXIe5711_waveform_param_specs(config.waveformId);
     for (const auto &spec : specs) {
-        const double value = PXIe5711_param_value(normalized.params, spec.key, spec.defaultValue);
+        const double value = PXIe5711_param_value(config.params, spec.key, spec.defaultValue);
         parts.push_back(QStringLiteral("%1 %2%3")
                             .arg(spec.label)
                             .arg(value, 0, 'f', spec.decimals)
@@ -55,10 +58,10 @@ QString waveformSummaryText(const JY5711WaveformConfig &config)
     }
 
     if (parts.isEmpty()) {
-        return PXIe5711_testtype_to_string(normalized.type);
+        return PXIe5711_waveform_display_name(config.waveformId);
     }
     return QStringLiteral("%1 | %2")
-        .arg(PXIe5711_testtype_to_string(normalized.type))
+        .arg(PXIe5711_waveform_display_name(config.waveformId))
         .arg(parts.join(QStringLiteral(" | ")));
 }
 }
@@ -128,12 +131,12 @@ void DataGenerateCard::buildUi()
         }
 
         if (selected.isEmpty()) {
-            QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请至少选择一个通道。"));
+            QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请至少选择一个输出通道。"));
             return;
         }
 
         if (m_manager && !m_manager->isDeviceInitialized(JYDeviceKind::PXIe5711)) {
-            QMessageBox::warning(this, QStringLiteral("提示"), QStringLiteral("JY5711 未初始化。"));
+            QMessageBox::warning(this, QStringLiteral("提示"), QStringLiteral("JY5711 设备尚未初始化。"));
             return;
         }
 
@@ -190,7 +193,7 @@ JYDeviceConfig DataGenerateCard::build5711Config(const QVector<int> &channels) c
 
         JY5711WaveformConfig wf = cfgIt.value().waveform;
         wf.channel = ch;
-        wf.syncLegacyFromParams();
+        wf.ensureValid();
         cfg5711.waveforms.push_back(wf);
     }
 
@@ -247,9 +250,10 @@ void DataGenerateCard::buildChannels()
     for (int ch = 0; ch < totalChannels; ++ch) {
         ChannelConfig cfg;
         cfg.mode = (ch <= 15) ? ChannelConfig::Mode::Current : ChannelConfig::Mode::Voltage;
-        cfg.waveform.type = PXIe5711_testtype::SineWave;
-        cfg.waveform.params = PXIe5711_default_param_map(cfg.waveform.type);
-        cfg.waveform.syncLegacyFromParams();
+        cfg.waveform.channel = ch;
+        cfg.waveform.waveformId = PXIe5711_default_waveform_id();
+        cfg.waveform.params = PXIe5711_default_param_map(cfg.waveform.waveformId);
+        cfg.waveform.ensureValid();
         m_channelConfigs.insert(ch, cfg);
 
         ChannelWidgets widgets = createChannelCard(ch);
@@ -337,10 +341,10 @@ void DataGenerateCard::openChannelEditor(int channel)
     }
 
     ChannelConfig cfg = m_channelConfigs[channel];
-    const JY5711WaveformConfig normalized = cfg.waveform.normalized();
+    cfg.waveform.ensureValid();
 
     QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("配置 %1").arg(channelTitle(channel)));
+    dialog.setWindowTitle(QStringLiteral("编辑 %1").arg(channelTitle(channel)));
     dialog.setModal(true);
 
     auto *layout = new QVBoxLayout(&dialog);
@@ -349,10 +353,10 @@ void DataGenerateCard::openChannelEditor(int channel)
     auto *headForm = new QFormLayout();
     auto *waveformBox = new QComboBox(&dialog);
     const auto options = waveformOptions();
-    for (const auto &opt : options) {
-        waveformBox->addItem(PXIe5711_testtype_to_string(opt), static_cast<int>(opt));
+    for (const QString &waveformId : options) {
+        waveformBox->addItem(PXIe5711_waveform_display_name(waveformId), waveformId);
     }
-    waveformBox->setCurrentText(PXIe5711_testtype_to_string(normalized.type));
+    waveformBox->setCurrentIndex(qMax(0, waveformBox->findData(cfg.waveform.waveformId)));
     headForm->addRow(QStringLiteral("波形类型"), waveformBox);
     layout->addLayout(headForm);
 
@@ -362,19 +366,20 @@ void DataGenerateCard::openChannelEditor(int channel)
     layout->addWidget(dynamicWidget);
 
     QMap<QString, QDoubleSpinBox *> editors;
-    auto rebuildEditors = [&](PXIe5711_testtype type, const QMap<QString, double> &values) {
+    auto rebuildEditors = [&](const QString &waveformId, const QMap<QString, double> &values) {
         while (dynamicForm->rowCount() > 0) {
             dynamicForm->removeRow(0);
         }
         editors.clear();
 
-        const auto specs = PXIe5711_waveform_param_specs(type);
+        const auto specs = PXIe5711_waveform_param_specs(waveformId);
+        const QMap<QString, double> mergedValues = PXIe5711_merge_params(waveformId, values);
         for (const auto &spec : specs) {
             auto *spin = new QDoubleSpinBox(dynamicWidget);
             spin->setRange(spec.minValue, spec.maxValue);
             spin->setDecimals(spec.decimals);
             spin->setSuffix(spec.suffix);
-            spin->setValue(PXIe5711_param_value(values, spec.key, spec.defaultValue));
+            spin->setValue(PXIe5711_param_value(mergedValues, spec.key, spec.defaultValue));
             dynamicForm->addRow(spec.label, spin);
             editors.insert(spec.key, spin);
         }
@@ -386,21 +391,15 @@ void DataGenerateCard::openChannelEditor(int channel)
         dialog.resize(dialog.sizeHint());
     };
 
-    rebuildEditors(normalized.type, normalized.params);
+    rebuildEditors(cfg.waveform.waveformId, cfg.waveform.params);
     connect(waveformBox, &QComboBox::currentIndexChanged, &dialog, [&]() {
         QMap<QString, double> currentValues;
         for (auto it = editors.cbegin(); it != editors.cend(); ++it) {
             currentValues.insert(it.key(), it.value()->value());
         }
 
-        const auto type = static_cast<PXIe5711_testtype>(waveformBox->currentData().toInt());
-        QMap<QString, double> nextValues = PXIe5711_default_param_map(type);
-        for (auto it = currentValues.cbegin(); it != currentValues.cend(); ++it) {
-            if (nextValues.contains(it.key())) {
-                nextValues[it.key()] = it.value();
-            }
-        }
-        rebuildEditors(type, nextValues);
+        const QString waveformId = waveformBox->currentData().toString();
+        rebuildEditors(waveformId, currentValues);
     });
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
@@ -409,18 +408,18 @@ void DataGenerateCard::openChannelEditor(int channel)
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
     if (dialog.exec() == QDialog::Accepted) {
-        cfg.waveform.type = static_cast<PXIe5711_testtype>(waveformBox->currentData().toInt());
-        cfg.waveform.params = PXIe5711_default_param_map(cfg.waveform.type);
+        cfg.waveform.waveformId = waveformBox->currentData().toString();
+        cfg.waveform.params = PXIe5711_default_param_map(cfg.waveform.waveformId);
         for (auto it = editors.cbegin(); it != editors.cend(); ++it) {
             cfg.waveform.params.insert(it.key(), it.value()->value());
         }
-        cfg.waveform.syncLegacyFromParams();
+        cfg.waveform.ensureValid();
         m_channelConfigs[channel] = cfg;
         updateChannelSummary(channel);
     }
 }
 
-QVector<PXIe5711_testtype> DataGenerateCard::waveformOptions() const
+QVector<QString> DataGenerateCard::waveformOptions() const
 {
-    return PXIe5711_waveform_options();
+    return PXIe5711_waveform_ids();
 }

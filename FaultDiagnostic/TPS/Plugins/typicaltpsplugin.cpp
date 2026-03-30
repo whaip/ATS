@@ -168,21 +168,15 @@ bool TypicalTpsPlugin::buildDevicePlan(const QVector<TPSPortBinding> &bindings,
         devicePlan.cfg5711.cfg5711.enabledChannels = {positiveOut->channel, negativeOut->channel};
         devicePlan.cfg5711.cfg5711.waveforms.clear();
 
-        JY5711WaveformConfig positiveWave;
-        positiveWave.channel = positiveOut->channel;
-        positiveWave.type = PXIe5711_testtype::HighLevelWave;
-        positiveWave.amplitude = 10.0;
-        positiveWave.frequency = 1000.0;
-        positiveWave.dutyCycle = 1.0;
-        devicePlan.cfg5711.cfg5711.waveforms.push_back(positiveWave);
+        devicePlan.cfg5711.cfg5711.waveforms.push_back(
+            build5711WaveformConfig(positiveOut->channel,
+                                    QStringLiteral("HighLevelWave"),
+                                    PXIe5711_make_params({{"amplitude", 10.0}})));
 
-        JY5711WaveformConfig negativeWave;
-        negativeWave.channel = negativeOut->channel;
-        negativeWave.type = PXIe5711_testtype::HighLevelWave;
-        negativeWave.amplitude = -10.0;
-        negativeWave.frequency = 1000.0;
-        negativeWave.dutyCycle = 1.0;
-        devicePlan.cfg5711.cfg5711.waveforms.push_back(negativeWave);
+        devicePlan.cfg5711.cfg5711.waveforms.push_back(
+            build5711WaveformConfig(negativeOut->channel,
+                                    QStringLiteral("HighLevelWave"),
+                                    PXIe5711_make_params({{"amplitude", -10.0}})));
     }
 
     TPSSignalRequest positiveReq;
@@ -257,21 +251,15 @@ bool TypicalTpsPlugin::configure(const QMap<QString, QVariant> &settings, QStrin
     m_config5711.cfg5711.enabledChannels = {positiveOut->channel, negativeOut->channel};
     m_config5711.cfg5711.waveforms.clear();
 
-    JY5711WaveformConfig positiveWave;
-    positiveWave.channel = positiveOut->channel;
-    positiveWave.type = PXIe5711_testtype::HighLevelWave;
-    positiveWave.amplitude = 10.0;
-    positiveWave.frequency = 1000.0;
-    positiveWave.dutyCycle = 1.0;
-    m_config5711.cfg5711.waveforms.push_back(positiveWave);
+    m_config5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(positiveOut->channel,
+                                QStringLiteral("HighLevelWave"),
+                                PXIe5711_make_params({{"amplitude", 10.0}})));
 
-    JY5711WaveformConfig negativeWave;
-    negativeWave.channel = negativeOut->channel;
-    negativeWave.type = PXIe5711_testtype::HighLevelWave;
-    negativeWave.amplitude = -10.0;
-    negativeWave.frequency = 1000.0;
-    negativeWave.dutyCycle = 1.0;
-    m_config5711.cfg5711.waveforms.push_back(negativeWave);
+    m_config5711.cfg5711.waveforms.push_back(
+        build5711WaveformConfig(negativeOut->channel,
+                                QStringLiteral("HighLevelWave"),
+                                PXIe5711_make_params({{"amplitude", -10.0}})));
 
     m_configReady = true;
     return true;

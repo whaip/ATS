@@ -101,6 +101,7 @@ private:
                  const QMap<QString, QVariant> &parameters);
     void refreshThermal(const ComponentViewData &item);
     void refreshPlot(const ComponentViewData &item);
+    void renderCurrentPlot(bool preserveView);
     void refreshReport(const ComponentViewData &item);
 
     Ui::FaultDiagnostic *ui;
@@ -133,6 +134,7 @@ private:
     TestTaskContextManager *m_taskContextManager = nullptr;
     bool m_devicesCreated = false;
     bool m_ownsThreadManager = false;
+    bool m_plotViewportSyncing = false;
 };
 
 #endif // FAULTDIAGNOSTIC_H

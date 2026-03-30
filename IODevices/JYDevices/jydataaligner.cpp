@@ -137,7 +137,7 @@ bool JYDataAligner::buildAlignedBatch(JYAlignedBatch &batch)
     }
 
     batch.packets.clear();
-    batch.timestampMs = static_cast<qint64>(qRound(maxStart * 1000.0));
+    batch.timestampMs = qRound64(maxStart * 1000.0);
 
     for (auto it = m_latest.begin(); it != m_latest.end(); ++it) {
         const auto &pkt = it.value();
@@ -154,7 +154,7 @@ bool JYDataAligner::buildAlignedBatch(JYAlignedBatch &batch)
         aligned.channelCount = pkt.channelCount;
         aligned.samplesPerChannel = targetTimes.size();
         aligned.sampleRateHz = refRate;
-        aligned.startSampleIndex = static_cast<quint64>(qRound((maxStart - m_anchorTimeSeconds) * refRate));
+        aligned.startSampleIndex = static_cast<quint64>(qRound64((maxStart - m_anchorTimeSeconds) * refRate));
         aligned.timestampMs = batch.timestampMs;
         interleave(resampled, aligned.data);
 

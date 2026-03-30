@@ -176,6 +176,91 @@ QVector<double> buildUniformTimelineForDuration(int sampleCount, double duration
     return timeline;
 }
 
+QPair<QVector<double>, QVector<double>> reduceCurveForViewport(const QVector<double> &xs,
+                                                               const QVector<double> &ys,
+                                                               double xLower,
+                                                               double xUpper,
+                                                               int pixelWidth)
+{
+    if (xs.isEmpty() || ys.isEmpty() || xs.size() != ys.size()) {
+        return {};
+    }
+
+    if (xUpper < xLower) {
+        std::swap(xLower, xUpper);
+    }
+
+    int begin = 0;
+    int end = xs.size();
+    if (xUpper > xLower) {
+        begin = static_cast<int>(std::lower_bound(xs.cbegin(), xs.cend(), xLower) - xs.cbegin());
+        end = static_cast<int>(std::upper_bound(xs.cbegin(), xs.cend(), xUpper) - xs.cbegin());
+        begin = qBound(0, begin, xs.size());
+        end = qBound(begin, end, xs.size());
+    }
+
+    if (begin >= end) {
+        return {};
+    }
+
+    const int count = end - begin;
+    const int safePixelWidth = qMax(64, pixelWidth);
+    const int maxPoints = safePixelWidth * 2;
+    if (count <= maxPoints) {
+        QVector<double> dx;
+        QVector<double> dy;
+        dx.reserve(count);
+        dy.reserve(count);
+        for (int i = begin; i < end; ++i) {
+            dx.push_back(xs.at(i));
+            dy.push_back(ys.at(i));
+        }
+        return qMakePair(dx, dy);
+    }
+
+    QVector<double> dx;
+    QVector<double> dy;
+    const int bucketCount = qMax(1, safePixelWidth);
+    const double bucketSize = static_cast<double>(count) / static_cast<double>(bucketCount);
+    dx.reserve(bucketCount * 2 + 2);
+    dy.reserve(bucketCount * 2 + 2);
+
+    for (int bucket = 0; bucket < bucketCount; ++bucket) {
+        const int bucketBegin = begin + static_cast<int>(bucket * bucketSize);
+        const int bucketEnd = qMin(end, begin + static_cast<int>((bucket + 1) * bucketSize));
+        if (bucketBegin >= bucketEnd) {
+            continue;
+        }
+
+        int minIndex = bucketBegin;
+        int maxIndex = bucketBegin;
+        for (int i = bucketBegin + 1; i < bucketEnd; ++i) {
+            if (ys.at(i) < ys.at(minIndex)) {
+                minIndex = i;
+            }
+            if (ys.at(i) > ys.at(maxIndex)) {
+                maxIndex = i;
+            }
+        }
+
+        if (minIndex <= maxIndex) {
+            dx.push_back(xs.at(minIndex));
+            dy.push_back(ys.at(minIndex));
+            if (maxIndex != minIndex) {
+                dx.push_back(xs.at(maxIndex));
+                dy.push_back(ys.at(maxIndex));
+            }
+        } else {
+            dx.push_back(xs.at(maxIndex));
+            dy.push_back(ys.at(maxIndex));
+            dx.push_back(xs.at(minIndex));
+            dy.push_back(ys.at(minIndex));
+        }
+    }
+
+    return qMakePair(dx, dy);
+}
+
 int componentIdFromRef(const QString &componentRef)
 {
     const QString trimmed = componentRef.trimmed();
@@ -2257,6 +2342,13 @@ void FaultDiagnostic::buildWidgets()
         m_plot->setTimeAxisEnabled(false);
         m_plot->setAutoRangeEnabled(true);
         ui->plotContainer->layout()->addWidget(m_plot);
+        connect(m_plot->xAxis, qOverload<const QCPRange &>(&QCPAxis::rangeChanged), this,
+                [this](const QCPRange &) {
+                    if (m_plotViewportSyncing) {
+                        return;
+                    }
+                    renderCurrentPlot(true);
+                });
     }
 
     if (ui->reportContainer) {
@@ -2323,7 +2415,7 @@ void FaultDiagnostic::setCurrentIndex(int index)
         m_signalGraphs.clear();
     }
     refreshThermal(item);
-    refreshPlot(item);
+    renderCurrentPlot(false);
     refreshReport(item);
 }
 
@@ -2350,6 +2442,10 @@ void FaultDiagnostic::refreshPlot(const ComponentViewData &item)
     if (!m_plot) {
         return;
     }
+    const bool preserveView = m_plot->isUserOverrideActive();
+    const double xLower = preserveView ? m_plot->visibleLowerBound() : 0.0;
+    const double xUpper = preserveView ? m_plot->visibleUpperBound() : 0.0;
+    const int pixelWidth = qMax(200, m_plot->plotAreaWidth());
     auto downsample = [](const QVector<double> &xs, const QVector<double> &ys, int maxPoints) {
         if (xs.size() <= maxPoints || ys.size() <= maxPoints || xs.size() != ys.size()) {
             return qMakePair(xs, ys);
@@ -2366,11 +2462,17 @@ void FaultDiagnostic::refreshPlot(const ComponentViewData &item)
         return qMakePair(dx, dy);
     };
 
-    const auto temp = downsample(item.x, item.y, 4000);
+    auto reduce = [&](const QVector<double> &xs, const QVector<double> &ys) {
+        return preserveView
+            ? reduceCurveForViewport(xs, ys, xLower, xUpper, pixelWidth)
+            : downsample(xs, ys, 4000);
+    };
+
+    const auto temp = reduce(item.x, item.y);
     if (!m_tempGraph) {
         m_tempGraph = m_plot->addStaticLine(QStringLiteral("娓╁害"), temp.first, temp.second, QColor(52, 152, 219));
     } else {
-        m_plot->updateStaticLine(m_tempGraph, temp.first, temp.second);
+        m_plot->updateStaticLine(m_tempGraph, temp.first, temp.second, !preserveView);
     }
 
     QStringList desiredSignalKeys;
@@ -2411,20 +2513,20 @@ void FaultDiagnostic::refreshPlot(const ComponentViewData &item)
 
         for (int index = 0; index < desiredSignalKeys.size(); ++index) {
             const QString &key = desiredSignalKeys.at(index);
-            const auto curve = downsample(item.signalXById.value(key), item.signalYById.value(key), 4000);
+            const auto curve = reduce(item.signalXById.value(key), item.signalYById.value(key));
             if (!m_signalGraphs.contains(key) || !m_signalGraphs.value(key)) {
                 const QColor color = palette.at(index % palette.size());
                 m_signalGraphs.insert(key, m_plot->addStaticLine(key, curve.first, curve.second, color));
             } else {
-                m_plot->updateStaticLine(m_signalGraphs.value(key), curve.first, curve.second);
+                m_plot->updateStaticLine(m_signalGraphs.value(key), curve.first, curve.second, !preserveView);
             }
         }
         return;
     }
 
-    const auto ch5322 = downsample(item.x5322, item.y5322, 4000);
-    const auto ch5323 = downsample(item.x5323, item.y5323, 4000);
-    const auto ch8902 = downsample(item.x8902, item.y8902, 4000);
+    const auto ch5322 = reduce(item.x5322, item.y5322);
+    const auto ch5323 = reduce(item.x5323, item.y5323);
+    const auto ch8902 = reduce(item.x8902, item.y8902);
 
     const QStringList existingKeys = m_signalGraphs.keys();
     for (const QString &key : existingKeys) {
@@ -2436,22 +2538,43 @@ void FaultDiagnostic::refreshPlot(const ComponentViewData &item)
         m_signalGraphs.insert(QStringLiteral("5322"),
                               m_plot->addStaticLine(QStringLiteral("5322"), ch5322.first, ch5322.second, QColor(46, 204, 113)));
     } else {
-        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("5322")), ch5322.first, ch5322.second);
+        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("5322")), ch5322.first, ch5322.second, !preserveView);
     }
 
     if (!m_signalGraphs.contains(QStringLiteral("5323")) || !m_signalGraphs.value(QStringLiteral("5323"))) {
         m_signalGraphs.insert(QStringLiteral("5323"),
                               m_plot->addStaticLine(QStringLiteral("5323"), ch5323.first, ch5323.second, QColor(241, 196, 15)));
     } else {
-        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("5323")), ch5323.first, ch5323.second);
+        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("5323")), ch5323.first, ch5323.second, !preserveView);
     }
 
     if (!m_signalGraphs.contains(QStringLiteral("8902")) || !m_signalGraphs.value(QStringLiteral("8902"))) {
         m_signalGraphs.insert(QStringLiteral("8902"),
                               m_plot->addStaticLine(QStringLiteral("8902"), ch8902.first, ch8902.second, QColor(155, 89, 182)));
     } else {
-        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("8902")), ch8902.first, ch8902.second);
+        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("8902")), ch8902.first, ch8902.second, !preserveView);
     }
+}
+
+void FaultDiagnostic::renderCurrentPlot(bool preserveView)
+{
+    if (!m_plot || !m_list) {
+        return;
+    }
+
+    const int index = m_list->currentRow();
+    if (index < 0 || index >= m_components.size()) {
+        return;
+    }
+
+    if (!preserveView) {
+        m_plot->resetAutoView();
+    }
+
+    const bool previousSyncing = m_plotViewportSyncing;
+    m_plotViewportSyncing = true;
+    refreshPlot(m_components.at(index));
+    m_plotViewportSyncing = previousSyncing;
 }
 
 void FaultDiagnostic::refreshReport(const ComponentViewData &item)

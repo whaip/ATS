@@ -423,12 +423,16 @@ private:
     {
         std::vector<std::unique_ptr<Waveform>> waveforms;
         waveforms.resize(static_cast<size_t>(m_cfg.channelCount));
+        QVector<double> channelOffsets(m_cfg.channelCount, 0.0);
         for (const auto &rawCfg : m_cfg.waveforms) {
-            const JY5711WaveformConfig cfg = rawCfg.normalized();
+            JY5711WaveformConfig cfg = rawCfg;
+            cfg.ensureValid();
             if (cfg.channel < 0 || cfg.channel >= m_cfg.channelCount) {
                 continue;
             }
-            double amplitude = cfg.amplitude;
+            waveforms[static_cast<size_t>(cfg.channel)] = PXIe5711_create_waveform(cfg.waveformId, cfg.params);
+            channelOffsets[cfg.channel] = PXIe5711_param_value(cfg.params, QStringLiteral("offset"), 0.0);
+            /*
             if (cfg.type == PXIe5711_testtype::HighLevelWave || cfg.type == PXIe5711_testtype::LowLevelWave) {
                 // amplitude = 0.201 * amplitude - 0.01107;  //调理板卡转换
                 amplitude =  amplitude;  //先不用调理板卡转换，直接用实际电压值，后续如果需要再加上转换
@@ -444,15 +448,13 @@ private:
                                          cfg.pulseTOn,
                                          cfg.pulseTPeriod,
                                          cfg.pulseUseTiming);
+            */
         }
 
         for (int i = 0; i < samples; ++i) {
             for (int ch = 0; ch < m_cfg.channelCount; ++ch) {
                 const int idx = i * m_cfg.channelCount + ch;
-                const auto cfgIt = std::find_if(m_cfg.waveforms.cbegin(),
-                                                m_cfg.waveforms.cend(),
-                                                [ch](const JY5711WaveformConfig &cfg) { return cfg.channel == ch; });
-                const double offset = (cfgIt != m_cfg.waveforms.cend()) ? cfgIt->offset : 0.0;
+                const double offset = channelOffsets.value(ch);
                 if (waveforms[static_cast<size_t>(ch)]) {
                     m_waveBuffer[idx] = waveforms[static_cast<size_t>(ch)]->generate(i, static_cast<int>(m_cfg.sampleRate)) + offset;
                 } else {

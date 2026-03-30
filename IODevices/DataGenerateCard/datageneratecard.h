@@ -6,7 +6,6 @@
 #include <QVector>
 #include <QWidget>
 
-#include "../JYDevices/5711waveformconfig.h"
 #include "../JYDevices/jydevicetype.h"
 
 class JYDeviceWorker;
@@ -61,7 +60,7 @@ private:
     void updateChannelSummary(int channel);
     void updateChannelStatus(int channel, const QString &text);
     void openChannelEditor(int channel);
-    QVector<PXIe5711_testtype> waveformOptions() const;
+    QVector<QString> waveformOptions() const;
     JYDeviceConfig build5711Config(const QVector<int> &channels) const;
     void ensure5711Worker();
 

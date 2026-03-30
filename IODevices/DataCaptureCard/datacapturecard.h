@@ -20,6 +20,7 @@ class QEvent;
 class UESTCQCustomPlot;
 class QCPGraph;
 class JYThreadManager;
+class WaveformDataManager;
 
 namespace Ui {
 class DataCaptureCard;
@@ -108,11 +109,16 @@ private:
     QVector<QVector<double>> m_activeBuffers;
     int m_batchCount = 0;
     qint64 m_lastBatchTs = 0;
+    WaveformDataManager *m_waveformManager = nullptr;
+    QTimer *m_viewRefreshTimer = nullptr;
+    bool m_viewRefreshPending = false;
+    bool m_updatingPlotView = false;
+    double m_lastFrameLatestX = 0.0;
     QMap<JYDeviceKind, QVector<QVector<double>>> m_captureBuffers;
     QMap<JYDeviceKind, QVector<QVector<double>>> m_displayBuffers;
-    double m_windowSeconds = 0.5;
-    double m_displayWindowSeconds = 0.5;
-    double m_displayRetentionSeconds = 5.0;
+    double m_windowSeconds = 3.0;
+    double m_displayWindowSeconds = 3.0;
+    double m_displayRetentionSeconds = 3.0;
     int m_plotMaxPoints = 600;
     int m_displayMaxPoints = 600;
 };

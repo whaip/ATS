@@ -52,6 +52,7 @@ SOURCES += \
     HDCamera/dshowcamerautil.cpp \
     HDCamera/zoomablegraphicsview.cpp \
     IODevices/DataCaptureCard/datacapturecard.cpp \
+    IODevices/DataCaptureCard/waveformdatamanager.cpp \
     IODevices/DataGenerateCard/datageneratecard.cpp \
     IODevices/JYDevices/jydeviceadapter.cpp \
     IODevices/JYDevices/jydeviceorchestrator.cpp \
@@ -134,6 +135,7 @@ HEADERS += \
     HDCamera/dshowcamerautil.h \
     HDCamera/zoomablegraphicsview.h \
     IODevices/DataCaptureCard/datacapturecard.h \
+    IODevices/DataCaptureCard/waveformdatamanager.h \
     IODevices/DataGenerateCard/datageneratecard.h \
     IODevices/JYDevices/jydatachannel.h \
     IODevices/JYDevices/jydataaligner.h \

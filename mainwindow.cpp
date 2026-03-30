@@ -348,13 +348,10 @@ MainWindow::MainWindow(QWidget *parent)
         config.cfg5711.sampleRate = 1000000.0;
         config.cfg5711.lowRange = -10.0;
         config.cfg5711.highRange = 10.0;
-        JY5711WaveformConfig wf;
-        wf.channel = 0;
-        wf.type = PXIe5711_testtype::HighLevelWave;
-        wf.amplitude = 0.0;
-        wf.frequency = 0.0;
-        wf.dutyCycle = 1.0;
-        config.cfg5711.waveforms.push_back(wf);
+        config.cfg5711.waveforms.push_back(
+            build5711WaveformConfig(0,
+                                    QStringLiteral("HighLevelWave"),
+                                    PXIe5711_make_params({{"amplitude", 0.0}})));
         return config;
     };
 
