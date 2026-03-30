@@ -11,12 +11,6 @@
 #include "../Core/testtaskcontextmanager.h"
 #include "../Diagnostics/diagnosticdispatcher.h"
 #include "../Diagnostics/diagnosticpluginmanager.h"
-#include "../Diagnostics/Plugins/capacitordiagnosticplugin.h"
-#include "../Diagnostics/Plugins/inductordiagnosticplugin.h"
-#include "../Diagnostics/Plugins/multitpsdiagnosticplugin.h"
-#include "../Diagnostics/Plugins/resistordiagnosticplugin.h"
-#include "../Diagnostics/Plugins/typicaldiagnosticplugin.h"
-#include "../Diagnostics/Plugins/transistordiagnosticplugin.h"
 #include "../TPS/Manager/tpspluginmanager.h"
 
 class JYThreadManager;
@@ -124,12 +118,6 @@ private:
     JYThreadManager *m_threadManager = nullptr;
     TPSPluginManager *m_tpsManager = nullptr;
     DiagnosticPluginManager *m_diagPluginManager = nullptr;
-    MultiTpsDiagnosticPlugin *m_multiSignalDiagnosticPlugin = nullptr;
-    CapacitorDiagnosticPlugin *m_capacitorDiagnosticPlugin = nullptr;
-    InductorDiagnosticPlugin *m_inductorDiagnosticPlugin = nullptr;
-    ResistorDiagnosticPlugin *m_resistorDiagnosticPlugin = nullptr;
-    TypicalDiagnosticPlugin *m_typicalDiagnosticPlugin = nullptr;
-    TransistorDiagnosticPlugin *m_transistorDiagnosticPlugin = nullptr;
     DiagnosticDispatcher m_diagnosticDispatcher;
     TestTaskContextManager *m_taskContextManager = nullptr;
     bool m_devicesCreated = false;

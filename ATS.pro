@@ -4,6 +4,11 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++17
 
+DIAGNOSTIC_PLUGIN_SOURCES = $$files(FaultDiagnostic/Diagnostics/Plugins/*.cpp, true)
+DIAGNOSTIC_PLUGIN_HEADERS = $$files(FaultDiagnostic/Diagnostics/Plugins/*.h, true)
+TPS_PLUGIN_SOURCES = $$files(FaultDiagnostic/TPS/Plugins/*.cpp, true)
+TPS_PLUGIN_HEADERS = $$files(FaultDiagnostic/TPS/Plugins/*.h, true)
+
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
@@ -27,25 +32,13 @@ SOURCES += \
     FaultDiagnostic/Core/deviceportmanager/deviceportmanager/deviceportmanagerwidget.cpp \
     FaultDiagnostic/Core/captureddatamanager.cpp \
     FaultDiagnostic/Diagnostics/diagnosticdispatcher.cpp \
+    FaultDiagnostic/Diagnostics/diagnosticbuiltinregistry.cpp \
     FaultDiagnostic/Diagnostics/diagnosticdatamapper.cpp \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.cpp \
-    FaultDiagnostic/Diagnostics/Plugins/capacitordiagnosticplugin.cpp \
-    FaultDiagnostic/Diagnostics/Plugins/inductordiagnosticplugin.cpp \
-    FaultDiagnostic/Diagnostics/Plugins/multitpsdiagnosticplugin.cpp \
-    FaultDiagnostic/Diagnostics/Plugins/resistordiagnosticplugin.cpp \
-    FaultDiagnostic/Diagnostics/Plugins/typicaldiagnosticplugin.cpp \
-    FaultDiagnostic/Diagnostics/Plugins/transistordiagnosticplugin.cpp \
     FaultDiagnostic/Runtime/systemorchestration.cpp \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.cpp \
     FaultDiagnostic/TPS/Manager/tpsbuiltinregistry.cpp \
     FaultDiagnostic/TPS/Core/tpsruntimecontext.cpp \
-    FaultDiagnostic/TPS/Plugins/exampletpsplugin.cpp \
-    FaultDiagnostic/TPS/Plugins/resistancetpsplugin.cpp \
-    FaultDiagnostic/TPS/Plugins/capacitortpsplugin.cpp \
-    FaultDiagnostic/TPS/Plugins/inductortpsplugin.cpp \
-    FaultDiagnostic/TPS/Plugins/transistortpsplugin.cpp \
-    FaultDiagnostic/TPS/Plugins/multitpsplugin.cpp \
-    FaultDiagnostic/TPS/Plugins/typicaltpsplugin.cpp \
     HDCamera/hdcamera.cpp \
     HDCamera/camerastation.cpp \
     HDCamera/camerastationclient.cpp \
@@ -105,28 +98,16 @@ HEADERS += \
     FaultDiagnostic/Diagnostics/diagnosticdatatypes.h \
     FaultDiagnostic/Diagnostics/diagnosticalgorithm.h \
     FaultDiagnostic/Diagnostics/diagnosticdispatcher.h \
+    FaultDiagnostic/Diagnostics/diagnosticbuiltinregistry.h \
     FaultDiagnostic/Diagnostics/diagnosticdatamapper.h \
     FaultDiagnostic/Diagnostics/diagnosticplugininterface.h \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.h \
-    FaultDiagnostic/Diagnostics/Plugins/capacitordiagnosticplugin.h \
-    FaultDiagnostic/Diagnostics/Plugins/inductordiagnosticplugin.h \
-    FaultDiagnostic/Diagnostics/Plugins/multitpsdiagnosticplugin.h \
-    FaultDiagnostic/Diagnostics/Plugins/resistordiagnosticplugin.h \
-    FaultDiagnostic/Diagnostics/Plugins/typicaldiagnosticplugin.h \
-    FaultDiagnostic/Diagnostics/Plugins/transistordiagnosticplugin.h \
     FaultDiagnostic/Runtime/systemorchestration.h \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.h \
     FaultDiagnostic/TPS/Manager/tpsbuiltinregistry.h \
     FaultDiagnostic/TPS/Core/tpsplugininterface.h \
     FaultDiagnostic/TPS/Core/tpsmodels.h \
     FaultDiagnostic/TPS/Core/tpsruntimecontext.h \
-    FaultDiagnostic/TPS/Plugins/exampletpsplugin.h \
-    FaultDiagnostic/TPS/Plugins/resistancetpsplugin.h \
-    FaultDiagnostic/TPS/Plugins/capacitortpsplugin.h \
-    FaultDiagnostic/TPS/Plugins/inductortpsplugin.h \
-    FaultDiagnostic/TPS/Plugins/transistortpsplugin.h \
-    FaultDiagnostic/TPS/Plugins/multitpsplugin.h \
-    FaultDiagnostic/TPS/Plugins/typicaltpsplugin.h \
     FaultDiagnostic/Core/testplan.h \
     HDCamera/hdcamera.h \
     HDCamera/camerastation.h \
@@ -168,6 +149,9 @@ HEADERS += \
     tool/pcb_extract.h \
     tool/pcbextract.h \
     tool/siftmatcher.h
+
+SOURCES += $$DIAGNOSTIC_PLUGIN_SOURCES $$TPS_PLUGIN_SOURCES
+HEADERS += $$DIAGNOSTIC_PLUGIN_HEADERS $$TPS_PLUGIN_HEADERS
 
 FORMS += \
     BoardManager/boardmanager.ui \
