@@ -61,14 +61,17 @@ void UESTCQCustomPlot::setupPlot()
     m_tracer = new QCPItemTracer(this);
     m_tracer->setStyle(QCPItemTracer::tsCircle);
     m_tracer->setSize(7);
+    m_tracer->setLayer(QStringLiteral("overlay"));
     m_tracer->setVisible(false);
 
     m_tracerLabel = new QCPItemText(this);
     m_tracerLabel->setPadding(QMargins(6, 4, 6, 4));
     m_tracerLabel->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_tracerLabel->setLayer(QStringLiteral("overlay"));
     m_tracerLabel->setVisible(false);
 
     m_tracerLine = new QCPItemLine(this);
+    m_tracerLine->setLayer(QStringLiteral("overlay"));
     m_tracerLine->setVisible(false);
 
     m_btnLegendCollapse = new QToolButton(this);
