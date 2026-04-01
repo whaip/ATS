@@ -17,6 +17,7 @@
 class Waveform {
 public:
     virtual ~Waveform() = default;
+    // 根据样本序号和采样率生成一个输出点。
     virtual double generate(int sampleIndex, int samplesRate) = 0;
 };
 
@@ -192,19 +193,26 @@ private:
 };
 
 struct PXIe5711ParamSpec {
+    // 参数键名，用于配置表和 UI 表单绑定。
     QString key;
+    // 参数显示名称。
     QString label;
     double minValue = 0.0;
     double maxValue = 0.0;
     double defaultValue = 0.0;
     int decimals = 3;
+    // 显示单位后缀。
     QString suffix;
 };
 
 struct PXIe5711WaveformDefinition {
+    // 波形唯一标识，用于持久化和运行时查找。
     QString id;
+    // 波形显示名称。
     QString displayName;
+    // 当前波形需要的参数规格。
     QVector<PXIe5711ParamSpec> params;
+    // 根据参数表构建具体波形对象的工厂函数。
     std::function<std::unique_ptr<Waveform>(const QMap<QString, double> &)> factory;
 };
 
@@ -218,6 +226,7 @@ inline double PXIe5711_param_value(const QMap<QString, double> &values,
 
 inline const QVector<PXIe5711WaveformDefinition> &PXIe5711_waveform_registry()
 {
+    // 5711 所有内置波形定义都集中维护在这里。
     static const QVector<PXIe5711WaveformDefinition> registry = {
         {
             QStringLiteral("HighLevelWave"),
@@ -339,6 +348,7 @@ inline const QVector<PXIe5711WaveformDefinition> &PXIe5711_waveform_registry()
 
 inline const PXIe5711WaveformDefinition *PXIe5711_find_waveform(const QString &waveformId)
 {
+    // 按波形 ID 查定义；查不到返回 nullptr。
     for (const auto &definition : PXIe5711_waveform_registry()) {
         if (definition.id.compare(waveformId, Qt::CaseInsensitive) == 0) {
             return &definition;
@@ -354,6 +364,7 @@ inline QString PXIe5711_default_waveform_id()
 
 inline QString PXIe5711_resolve_waveform_id(const QString &token)
 {
+    // 允许用英文 ID 或显示名反查标准波形 ID。
     for (const auto &definition : PXIe5711_waveform_registry()) {
         if (definition.id.compare(token, Qt::CaseInsensitive) == 0
             || definition.displayName.compare(token, Qt::CaseInsensitive) == 0) {
@@ -399,6 +410,7 @@ inline QMap<QString, double> PXIe5711_default_param_map(const QString &waveformI
 inline QMap<QString, double> PXIe5711_merge_params(const QString &waveformId,
                                                    const QMap<QString, double> &values)
 {
+    // 先补齐默认参数，再用传入值覆盖已有键，避免缺参。
     QMap<QString, double> merged = PXIe5711_default_param_map(waveformId);
     for (auto it = values.cbegin(); it != values.cend(); ++it) {
         if (merged.contains(it.key())) {
@@ -411,6 +423,7 @@ inline QMap<QString, double> PXIe5711_merge_params(const QString &waveformId,
 inline std::unique_ptr<Waveform> PXIe5711_create_waveform(const QString &waveformId,
                                                           const QMap<QString, double> &params)
 {
+    // 外部真正生成波形对象时建议走这个工厂，而不是直接 new 具体波形类。
     const auto *definition = PXIe5711_find_waveform(waveformId);
     if (!definition || !definition->factory) {
         return nullptr;

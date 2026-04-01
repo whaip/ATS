@@ -5,10 +5,6 @@
 #include "../../../IODevices/JYDevices/jydeviceconfigutils.h"
 #include "../../../IODevices/JYDevices/5711waveformconfig.h"
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QRegularExpression>
-#include <QtMath>
 
 namespace {
 const TPSPortBinding *findBinding(const QVector<TPSPortBinding> &bindings, const QString &identifier)
@@ -51,50 +47,7 @@ QString anchorText(const QMap<QString, QVariant> &settings, const QString &key)
     return text.isEmpty() ? QStringLiteral("-1") : text;
 }
 
-void appendSamplesFromVariant(const QVariant &value, QVector<double> *samples)
-{
-    if (!samples) {
-        return;
-    }
 
-    if (value.canConvert<QVariantList>()) {
-        const QVariantList list = value.toList();
-        for (const QVariant &item : list) {
-            bool ok = false;
-            const double sample = item.toDouble(&ok);
-            if (ok) {
-                samples->push_back(sample);
-            }
-        }
-        return;
-    }
-
-    const QString text = value.toString().trimmed();
-    if (text.isEmpty()) {
-        return;
-    }
-
-    QJsonParseError parseError;
-    const QJsonDocument json = QJsonDocument::fromJson(text.toUtf8(), &parseError);
-    if (parseError.error == QJsonParseError::NoError && json.isArray()) {
-        const QJsonArray array = json.array();
-        for (const QJsonValue &item : array) {
-            if (item.isDouble()) {
-                samples->push_back(item.toDouble());
-            }
-        }
-        return;
-    }
-
-    const QStringList tokens = text.split(QRegularExpression(QStringLiteral("[,;\\s]+")), Qt::SkipEmptyParts);
-    for (const QString &token : tokens) {
-        bool ok = false;
-        const double sample = token.toDouble(&ok);
-        if (ok) {
-            samples->push_back(sample);
-        }
-    }
-}
 }
 
 ResistanceTpsPlugin::ResistanceTpsPlugin(QObject *parent)
@@ -356,73 +309,18 @@ bool ResistanceTpsPlugin::execute(const TPSRequest &request, TPSResult *result, 
         return false;
     }
 
-    const double nominalOhms = m_settings.value(QStringLiteral("nominalOhms"), 1000.0).toDouble();
-    const double tolerancePercent = m_settings.value(QStringLiteral("tolerancePercent"), 5.0).toDouble();
-    const double excitationV = resolveExcitationVoltage(request);
-
-    QVector<double> samples;
-    collectInputSamples(request, &samples);
-    double meanV = 0.0;
-    if (!samples.isEmpty()) {
-        double sum = 0.0;
-        for (double sample : samples) {
-            sum += sample;
-        }
-        meanV = sum / static_cast<double>(samples.size());
-    } else {
-        meanV = excitationV * 1.01;
-    }
-
-    double measuredOhms = nominalOhms;
-    if (qAbs(excitationV) > 1e-12) {
-        measuredOhms = nominalOhms * (meanV / excitationV);
-    }
-
-    const double delta = qAbs(measuredOhms - nominalOhms);
-    const double limit = nominalOhms * tolerancePercent / 100.0;
-
     result->runId = request.runId;
-    result->success = delta <= limit;
-    result->summary = result->success
-        ? QStringLiteral("PASS: %1 Ω").arg(measuredOhms, 0, 'f', 2)
-        : QStringLiteral("FAIL: %1 Ω").arg(measuredOhms, 0, 'f', 2);
+    result->success = true;
+    result->summary = QStringLiteral("Resistance TPS strategy executed");
+    result->metrics.insert(QStringLiteral("nominalOhms"),
+                           m_settings.value(QStringLiteral("nominalOhms"), 1000.0).toDouble());
+    result->metrics.insert(QStringLiteral("tolerancePercent"),
+                           m_settings.value(QStringLiteral("tolerancePercent"), 5.0).toDouble());
+    result->metrics.insert(QStringLiteral("excitationVoltage"), 2.0);
 
-    result->metrics.insert(QStringLiteral("nominalOhms"), nominalOhms);
-    result->metrics.insert(QStringLiteral("measuredOhms"), measuredOhms);
-    result->metrics.insert(QStringLiteral("meanInputVoltage"), meanV);
-    result->metrics.insert(QStringLiteral("excitationVoltage"), excitationV);
-    result->metrics.insert(QStringLiteral("tolerancePercent"), tolerancePercent);
-    result->metrics.insert(QStringLiteral("sampleCount"), samples.size());
-    result->metrics.insert(QStringLiteral("items"), request.items.size());
     return true;
 }
 
-bool ResistanceTpsPlugin::collectInputSamples(const TPSRequest &request, QVector<double> *samples) const
-{
-    if (!samples) {
-        return false;
-    }
 
-    samples->clear();
-    for (const UTRItem &item : request.items) {
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("resistanceMeasurementInput.samples")), samples);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("inputSamples")), samples);
-    }
-    return !samples->isEmpty();
-}
 
-double ResistanceTpsPlugin::resolveExcitationVoltage(const TPSRequest &request) const
-{
-    for (const UTRItem &item : request.items) {
-        const QVariant explicitValue = item.parameters.value(QStringLiteral("resistanceMeasurementOutput.value"));
-        if (explicitValue.isValid()) {
-            bool ok = false;
-            const double value = explicitValue.toDouble(&ok);
-            if (ok && qAbs(value) > 1e-12) {
-                return value;
-            }
-        }
-    }
 
-    return 2.0;
-}

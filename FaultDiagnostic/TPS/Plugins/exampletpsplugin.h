@@ -11,6 +11,8 @@ class ExampleTpsPlugin : public QObject, public TPSPluginInterface
     Q_INTERFACES(TPSPluginInterface)
 
 public:
+    explicit ExampleTpsPlugin(QObject *parent = nullptr);
+
     QString pluginId() const override;
     QString displayName() const override;
     QString version() const override;
@@ -27,6 +29,11 @@ public:
     bool execute(const TPSRequest &request, TPSResult *result, QString *error) override;
 
 private:
+    static const TPSPortBinding *findBinding(const QVector<TPSPortBinding> &bindings, const QString &identifier);
+    static QString deviceKindName(JYDeviceKind kind);
+    static QString portText(const TPSPortBinding &binding);
+    static QString anchorText(const QMap<QString, QVariant> &settings, const QString &key);
+
     QMap<QString, QVariant> m_settings;
 };
 

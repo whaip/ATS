@@ -123,6 +123,8 @@ bool JYDeviceOrchestrator::synchronizeStart(const JYDeviceConfig &config532x,
                                             int timeoutMs,
                                             qint64 *barrierReleaseMs)
 {
+    // 统一启动的关键点是：所有设备先配置完成，再统一 start，再统一 trigger。
+    // 这样可以最大限度缩小不同设备真正开始采样/输出的时间偏差。
     m_lastConfig532x = config532x;
     m_lastConfig5711 = config5711;
     m_lastConfig8902 = config8902;
@@ -179,6 +181,7 @@ bool JYDeviceOrchestrator::synchronizeStart(const JYDeviceConfig &config532x,
 
 bool JYDeviceOrchestrator::synchronizeStop(int timeoutMs)
 {
+    // 若有最近一次启动配置，则只停止当次参与运行的设备，避免误伤未启用设备。
     QString reason;
     if (m_hasLastConfig) {
         for (auto *worker : m_workers) {
@@ -217,6 +220,7 @@ bool JYDeviceOrchestrator::waitForAll(JYDeviceState targetState,
                                       const JYDeviceConfig &config8902,
                                       bool useFilter)
 {
+    // 这里通过事件循环等待 worker 的状态信号，避免 UI 线程忙等轮询。
     QEventLoop loop;
     QTimer timer;
     timer.setSingleShot(true);

@@ -5,11 +5,6 @@
 #include "../../../IODevices/JYDevices/5711waveformconfig.h"
 #include "../../../IODevices/JYDevices/jydeviceconfigutils.h"
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QRegularExpression>
-#include <QtMath>
-#include <algorithm>
 
 namespace {
 constexpr double kFixedStimulusAmplitudeV = 5.0;
@@ -348,160 +343,25 @@ bool InductorTpsPlugin::execute(const TPSRequest &request, TPSResult *result, QS
         return false;
     }
 
-    SignalSeries series;
-    if (!collectSignalSeries(request, &series)) {
-        const double nominalL_uH = m_settings.value(QStringLiteral("nominalL_uH"), 100.0).toDouble();
-        result->runId = request.runId;
-        result->success = true;
-        result->summary = QStringLiteral("fallback(no waveform), L≈%1uH").arg(nominalL_uH, 0, 'f', 3);
-        result->metrics.insert(QStringLiteral("L_est_uH"), nominalL_uH);
-        result->metrics.insert(QStringLiteral("sampleCount"), 0);
-        return true;
-    }
-
-    const int count = qMin(series.vin.size(), qMin(series.vn1.size(), series.vn2.size()));
-    const double fs = series.sampleRateHz;
-    const double dt = (fs > 0.0) ? (1.0 / fs) : 0.0;
-    const double rs = kFixedSeriesResistorOhms;
-
-    QVector<double> i;
-    QVector<double> vL;
-    i.reserve(count);
-    vL.reserve(count);
-    for (int idx = 0; idx < count; ++idx) {
-        const double vin = series.vin.at(idx);
-        const double vn1 = series.vn1.at(idx);
-        const double vn2 = series.vn2.at(idx);
-        i.push_back((vin - vn1) / qMax(rs, 1e-12));
-        vL.push_back(vn1 - vn2);
-    }
-
-    QVector<double> lCandidates;
-    lCandidates.reserve(count);
-    for (int idx = 1; idx < count; ++idx) {
-        const double di = i.at(idx) - i.at(idx - 1);
-        if (qAbs(di) < 1e-12 || dt <= 0.0) {
-            continue;
-        }
-        const double l = vL.at(idx) * dt / di;
-        if (qIsFinite(l) && qAbs(l) > 1e-12) {
-            lCandidates.push_back(qAbs(l));
-        }
-    }
-
-    const double lEstH = medianValue(lCandidates);
-    const double lEst_uH = lEstH * 1e6;
-
-    const int tailStart = qMax(0, count * 3 / 4);
-    const double iTail = meanValue(i, tailStart);
-    const double vLTail = meanValue(vL, tailStart);
-    double dcrOhms = 0.0;
-    if (qAbs(iTail) > 1e-9) {
-        dcrOhms = vLTail / iTail;
-    }
-
-    const double nominal_uH = m_settings.value(QStringLiteral("nominalL_uH"), 100.0).toDouble();
-    const double tolerance = m_settings.value(QStringLiteral("tolerancePercent"), 10.0).toDouble();
-    const double low = nominal_uH * (1.0 - tolerance / 100.0);
-    const double high = nominal_uH * (1.0 + tolerance / 100.0);
-
-    const bool pass = (lEst_uH >= low && lEst_uH <= high && qIsFinite(lEst_uH));
-
     result->runId = request.runId;
-    result->success = pass;
-    result->summary = QStringLiteral("L_est=%1uH, range=[%2,%3]uH, DCR≈%4Ω")
-        .arg(lEst_uH, 0, 'f', 3)
-        .arg(low, 0, 'f', 3)
-        .arg(high, 0, 'f', 3)
-        .arg(dcrOhms, 0, 'f', 4);
-
-    result->metrics.insert(QStringLiteral("L_est_uH"), lEst_uH);
-    result->metrics.insert(QStringLiteral("L_nominal_uH"), nominal_uH);
-    result->metrics.insert(QStringLiteral("L_low_uH"), low);
-    result->metrics.insert(QStringLiteral("L_high_uH"), high);
-    result->metrics.insert(QStringLiteral("DCR_est_ohm"), dcrOhms);
-    result->metrics.insert(QStringLiteral("sampleRateHz"), fs);
-    result->metrics.insert(QStringLiteral("sampleCount"), count);
+    result->success = true;
+    result->summary = QStringLiteral("Inductor TPS strategy executed");
+    result->metrics.insert(QStringLiteral("nominalL_uH"),
+                           m_settings.value(QStringLiteral("nominalL_uH"), 100.0).toDouble());
+    result->metrics.insert(QStringLiteral("tolerancePercent"),
+                           m_settings.value(QStringLiteral("tolerancePercent"), 10.0).toDouble());
+    result->metrics.insert(QStringLiteral("sampleRateHz"), kFixedCaptureSampleRateHz);
+    result->metrics.insert(QStringLiteral("captureDurationMs"), kFixedCaptureDurationMs);
+    result->metrics.insert(QStringLiteral("stimulusAmplitudeV"), kFixedStimulusAmplitudeV);
+    result->metrics.insert(QStringLiteral("stimulusFrequencyHz"), kFixedStimulusFrequencyHz);
+    result->metrics.insert(QStringLiteral("seriesResistorOhms"), kFixedSeriesResistorOhms);
 
     return true;
 }
 
-bool InductorTpsPlugin::collectSignalSeries(const TPSRequest &request, SignalSeries *series) const
-{
-    if (!series) {
-        return false;
-    }
 
-    series->vin.clear();
-    series->vn1.clear();
-    series->vn2.clear();
-    series->sampleRateHz = kFixedCaptureSampleRateHz;
 
-    for (const UTRItem &item : request.items) {
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("inductorVinInput.samples")), &series->vin);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("inductorVn1Input.samples")), &series->vn1);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("inductorVn2Input.samples")), &series->vn2);
 
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("vinSamples")), &series->vin);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("vn1Samples")), &series->vn1);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("vn2Samples")), &series->vn2);
-    }
-
-    const int count = qMin(series->vin.size(), qMin(series->vn1.size(), series->vn2.size()));
-    if (count <= 8 || series->sampleRateHz <= 0.0) {
-        return false;
-    }
-
-    series->vin.resize(count);
-    series->vn1.resize(count);
-    series->vn2.resize(count);
-    return true;
-}
-
-void InductorTpsPlugin::appendSamplesFromVariant(const QVariant &value, QVector<double> *samples)
-{
-    if (!samples) {
-        return;
-    }
-
-    if (value.canConvert<QVariantList>()) {
-        const QVariantList list = value.toList();
-        for (const QVariant &item : list) {
-            bool ok = false;
-            const double sample = item.toDouble(&ok);
-            if (ok) {
-                samples->push_back(sample);
-            }
-        }
-        return;
-    }
-
-    const QString text = value.toString().trimmed();
-    if (text.isEmpty()) {
-        return;
-    }
-
-    QJsonParseError parseError;
-    const QJsonDocument json = QJsonDocument::fromJson(text.toUtf8(), &parseError);
-    if (parseError.error == QJsonParseError::NoError && json.isArray()) {
-        const QJsonArray arr = json.array();
-        for (const QJsonValue &v : arr) {
-            if (v.isDouble()) {
-                samples->push_back(v.toDouble());
-            }
-        }
-        return;
-    }
-
-    const QStringList tokens = text.split(QRegularExpression(QStringLiteral("[,;\\s]+")), Qt::SkipEmptyParts);
-    for (const QString &token : tokens) {
-        bool ok = false;
-        const double sample = token.toDouble(&ok);
-        if (ok) {
-            samples->push_back(sample);
-        }
-    }
-}
 
 const TPSPortBinding *InductorTpsPlugin::findBinding(const QVector<TPSPortBinding> &bindings, const QString &identifier)
 {
@@ -528,30 +388,6 @@ QString InductorTpsPlugin::anchorText(const QMap<QString, QVariant> &settings, c
     return text.isEmpty() ? QStringLiteral("-1") : text;
 }
 
-double InductorTpsPlugin::meanValue(const QVector<double> &values, int start)
-{
-    if (values.isEmpty()) {
-        return 0.0;
-    }
-    const int begin = qBound(0, start, values.size() - 1);
-    double sum = 0.0;
-    int used = 0;
-    for (int idx = begin; idx < values.size(); ++idx) {
-        sum += values.at(idx);
-        ++used;
-    }
-    return used > 0 ? sum / static_cast<double>(used) : 0.0;
-}
 
-double InductorTpsPlugin::medianValue(QVector<double> values)
-{
-    if (values.isEmpty()) {
-        return 0.0;
-    }
-    std::sort(values.begin(), values.end());
-    const int mid = values.size() / 2;
-    if (values.size() % 2 == 1) {
-        return values.at(mid);
-    }
-    return 0.5 * (values.at(mid - 1) + values.at(mid));
-}
+
+

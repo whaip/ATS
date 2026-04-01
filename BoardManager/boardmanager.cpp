@@ -11,7 +11,6 @@
 #include "../tool/pcbextract.h"
 #include "../tool/siftmatcher.h"
 #include "../logger.h"
-
 #include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QCheckBox>
@@ -33,7 +32,6 @@
 #include <QRegularExpression>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
-
 #include <algorithm>
 #include <exception>
 #include <opencv2/opencv.hpp>

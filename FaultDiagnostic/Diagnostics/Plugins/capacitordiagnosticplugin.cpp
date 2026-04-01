@@ -435,6 +435,7 @@ int classifyMode(const DiagnosticInput &input, const CapacitorFeatures &features
     const double vh = input.parameters.value(QStringLiteral("stimulusAmplitudeV"), 5.0).toDouble();
     const double tauTolerance = input.parameters.value(QStringLiteral("tauDriftTolerance"), 0.35).toDouble();
 
+    const double vinMissingThreshold = qMax(0.05, 0.08 * qMax(vh, 0.1));
     const double shortAmplitudeThreshold = qMax(0.2, 0.12 * qMax(vh, 0.1));
     const double openTauFactor = 0.30;
     const double openCorrelationThreshold = 0.97;
@@ -442,6 +443,13 @@ int classifyMode(const DiagnosticInput &input, const CapacitorFeatures &features
     const double leakRetentionThreshold = 0.90;
     const double leakDischargeFactor = 0.60;
     const double esrEdgeDropThreshold = qMax(0.03, 0.06 * qMax(vh, 0.1));
+
+    // If the stimulus itself is missing at the measurement point, treat the DUT as open/unconnected
+    // instead of misclassifying the near-zero response as a short.
+    const bool stimulusMissing = features.vinAmplitude <= vinMissingThreshold;
+    if (stimulusMissing) {
+        return 2;
+    }
 
     const bool shortLike = (features.vcapAmplitude <= shortAmplitudeThreshold)
         || (features.vcapMax <= shortAmplitudeThreshold);

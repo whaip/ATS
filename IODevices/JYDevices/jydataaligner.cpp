@@ -52,6 +52,7 @@ void JYDataAligner::ingest(const JYDataPacket &packet)
     qint64 newest = packet.timestampMs;
     purgeStale(newest);
 
+    // 只有当期望设备集合全部到齐时，才允许输出一个 aligned batch。
     if (!m_expected.isEmpty()) {
         for (auto kind : m_expected) {
             if (!m_latest.contains(kind)) {
@@ -90,6 +91,7 @@ bool JYDataAligner::buildAlignedBatch(JYAlignedBatch &batch)
         return false;
     }
 
+    // 以最高采样率作为参考时间轴，低采样率设备向这条时间轴插值对齐。
     double refRate = 0.0;
     for (auto it = m_latest.begin(); it != m_latest.end(); ++it) {
         refRate = qMax(refRate, it->sampleRateHz);
@@ -113,6 +115,8 @@ bool JYDataAligner::buildAlignedBatch(JYAlignedBatch &batch)
             m_hasAnchor = true;
         }
 
+        // 每个包先根据 sampleIndex、sampleRate 和锚点恢复出绝对时间范围，
+        // 再对所有设备的时间范围求交集。
         const double packetStart = m_anchorTimeSeconds + static_cast<double>(pkt.startSampleIndex) / rate;
         const double packetEnd = m_anchorTimeSeconds + endIndex / rate;
 
@@ -132,6 +136,7 @@ bool JYDataAligner::buildAlignedBatch(JYAlignedBatch &batch)
     }
 
     QVector<double> targetTimes;
+    // 目标时间轴按 refRate 等间隔生成，长度由 windowMs 和公共交集共同决定。
     for (double t = maxStart; t <= targetEnd + 1e-12; t += step) {
         targetTimes.push_back(t);
     }
@@ -200,6 +205,7 @@ QVector<double> JYDataAligner::resampleChannel(const QVector<double> &samples,
 
     const double startTime = t0Seconds + static_cast<double>(startIndex) / sampleRateHz;
 
+    // 对每个目标时刻，先换算成源通道中的浮点样本索引，再做线性插值。
     for (double t : targetTimes) {
         const double targetIndex = (t - startTime) * sampleRateHz;
         const int idx0 = static_cast<int>(qFloor(targetIndex));

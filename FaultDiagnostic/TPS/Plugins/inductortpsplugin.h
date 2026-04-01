@@ -29,22 +29,10 @@ public:
     bool execute(const TPSRequest &request, TPSResult *result, QString *error) override;
 
 private:
-    struct SignalSeries {
-        QVector<double> vin;
-        QVector<double> vn1;
-        QVector<double> vn2;
-        double sampleRateHz = 0.0;
-    };
-
-    bool collectSignalSeries(const TPSRequest &request, SignalSeries *series) const;
-    static void appendSamplesFromVariant(const QVariant &value, QVector<double> *samples);
     static const TPSPortBinding *findBinding(const QVector<TPSPortBinding> &bindings, const QString &identifier);
 
     static QString portText(const TPSPortBinding &binding);
     static QString anchorText(const QMap<QString, QVariant> &settings, const QString &key);
-
-    static double meanValue(const QVector<double> &values, int start = 0);
-    static double medianValue(QVector<double> values);
 
     QMap<QString, QVariant> m_settings;
     QVector<TPSPortBinding> m_allocatedBindings;

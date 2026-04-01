@@ -5,10 +5,7 @@
 #include "../../../IODevices/JYDevices/5711waveformconfig.h"
 #include "../../../IODevices/JYDevices/jydeviceconfigutils.h"
 
-#include <QJsonArray>
-#include <QJsonDocument>
 #include <QRegularExpression>
-#include <QtMath>
 
 namespace {
 QString deviceKindName(JYDeviceKind kind)
@@ -579,207 +576,22 @@ bool TransistorTpsPlugin::execute(const TPSRequest &request, TPSResult *result, 
         return false;
     }
 
-    SignalSeries series;
-    const bool gotData = collectSignalSeries(request, &series);
-    if (!gotData) {
-        const int mode = expectedMode();
-        result->runId = request.runId;
-        result->success = true;
-        result->summary = QStringLiteral("%1 (fallback, no waveform samples)").arg(modeName(mode));
-        result->metrics.insert(QStringLiteral("mode.predicted"), mode);
-        result->metrics.insert(QStringLiteral("mode.expected"), mode);
-        result->metrics.insert(QStringLiteral("sampleCount"), 0);
-        return true;
-    }
-
-    const int count = qMin(qMin(series.vc.size(), series.ve.size()), qMin(series.icSense.size(), series.ibSense.size()));
-    const double fs = series.sampleRateHz;
-
-    const double rb = qMax(1e-12, m_settings.value(QStringLiteral("rbOhms"), 20000.0).toDouble());
-    const double icSenseOhms = qMax(1e-12, m_settings.value(QStringLiteral("icSenseOhms"), 100.0).toDouble());
-    const double vcc = m_settings.value(QStringLiteral("vccV"), 5.0).toDouble();
-
-    const double periodMs = qMax(0.01, m_settings.value(QStringLiteral("periodMs"), 4.0).toDouble());
-    const double tonMs = qBound(0.001, m_settings.value(QStringLiteral("tonMs"), 2.0).toDouble(), periodMs - 0.0001);
-
-    const int samplesPerPeriod = qMax(2, qRound((periodMs * 1e-3) * fs));
-    const int samplesOn = qBound(1, qRound((tonMs * 1e-3) * fs), samplesPerPeriod - 1);
-    const int samplesOff = qMax(1, samplesPerPeriod - samplesOn);
-
-    const double onStartRatio = qBound(0.0, m_settings.value(QStringLiteral("onWindowStartRatio"), 0.6).toDouble(), 1.0);
-    const double onEndRatio = qBound(0.0, m_settings.value(QStringLiteral("onWindowEndRatio"), 0.9).toDouble(), 1.0);
-    const double offStartRatio = qBound(0.0, m_settings.value(QStringLiteral("offWindowStartRatio"), 0.2).toDouble(), 1.0);
-    const double offEndRatio = qBound(0.0, m_settings.value(QStringLiteral("offWindowEndRatio"), 0.8).toDouble(), 1.0);
-
-    const int onStart = qBound(0, qRound(samplesOn * qMin(onStartRatio, onEndRatio)), samplesOn - 1);
-    const int onEnd = qBound(onStart + 1, qRound(samplesOn * qMax(onStartRatio, onEndRatio)), samplesOn);
-
-    const int offStart = qBound(0, qRound(samplesOff * qMin(offStartRatio, offEndRatio)), samplesOff - 1);
-    const int offEnd = qBound(offStart + 1, qRound(samplesOff * qMax(offStartRatio, offEndRatio)), samplesOff);
-
-    const QVector<int> onIndices = buildWindowIndices(count, samplesPerPeriod, onStart, onEnd, 0);
-    const QVector<int> offIndices = buildWindowIndices(count, samplesPerPeriod, offStart, offEnd, samplesOn);
-
-    QVector<double> vce;
-    QVector<double> ic;
-    QVector<double> ib;
-    vce.reserve(count);
-    ic.reserve(count);
-    ib.reserve(count);
-
-    for (int idx = 0; idx < count; ++idx) {
-        const double vceNow = series.vc.at(idx) - series.ve.at(idx);
-        const double icNow = series.icSense.at(idx) / icSenseOhms;
-        const double ibNow = series.ibSense.at(idx) / rb;
-        vce.push_back(vceNow);
-        ic.push_back(icNow);
-        ib.push_back(ibNow);
-    }
-
-    const double icOn = meanOf(ic, onIndices);
-    const double ibOn = meanOf(ib, onIndices);
-    const double vceOn = meanOf(vce, onIndices);
-    const double icOff = qAbs(meanOf(ic, offIndices));
-
-    double beta = 0.0;
-    if (qAbs(ibOn) > 1e-12) {
-        beta = icOn / ibOn;
-    }
-
-    const double iOpen = m_settings.value(QStringLiteral("iOpen_A"), 1e-4).toDouble();
-    const double vShort = m_settings.value(QStringLiteral("vShort_V"), 0.05).toDouble();
-    const double iLimit = m_settings.value(QStringLiteral("iLimit_A"), 0.04).toDouble();
-    const double iLeak = m_settings.value(QStringLiteral("iLeak_A"), 1e-7).toDouble();
-    const double betaNominal = qMax(1e-12, m_settings.value(QStringLiteral("betaNominal"), 100.0).toDouble());
-    const double betaMargin = m_settings.value(QStringLiteral("betaMargin"), 0.25).toDouble();
-
-    int predicted = 0;
-    if (qAbs(icOn) <= iOpen && vceOn >= 0.8 * vcc) {
-        predicted = 2;
-    } else if (vceOn <= vShort && qAbs(icOn) >= iLimit) {
-        predicted = 3;
-    } else if (icOff >= iLeak) {
-        predicted = 4;
-    } else {
-        const double relBetaDiff = qAbs(beta - betaNominal) / betaNominal;
-        if (relBetaDiff > betaMargin) {
-            predicted = 1;
-        }
-    }
-
-    const int expected = expectedMode();
-
     result->runId = request.runId;
-    result->success = (predicted == expected);
-    result->summary = QStringLiteral("Pred=%1, Exp=%2, Ic_on=%3A, Ib_on=%4A, beta=%5, Vce_sat=%6V, Ioff=%7A")
-        .arg(modeName(predicted))
-        .arg(modeName(expected))
-        .arg(icOn, 0, 'g', 6)
-        .arg(ibOn, 0, 'g', 6)
-        .arg(beta, 0, 'g', 6)
-        .arg(vceOn, 0, 'g', 6)
-        .arg(icOff, 0, 'g', 6);
-
-    result->metrics.insert(QStringLiteral("mode.predicted"), predicted);
-    result->metrics.insert(QStringLiteral("mode.expected"), expected);
-    result->metrics.insert(QStringLiteral("Ic_on_A"), icOn);
-    result->metrics.insert(QStringLiteral("Ib_on_A"), ibOn);
-    result->metrics.insert(QStringLiteral("beta_est"), beta);
-    result->metrics.insert(QStringLiteral("VCE_sat_V"), vceOn);
-    result->metrics.insert(QStringLiteral("Ioff_A"), icOff);
-    result->metrics.insert(QStringLiteral("sampleRateHz"), fs);
-    result->metrics.insert(QStringLiteral("sampleCount"), count);
+    result->success = true;
+    result->summary = QStringLiteral("Transistor TPS strategy executed");
+    result->metrics.insert(QStringLiteral("expectedMode"), expectedMode());
+    result->metrics.insert(QStringLiteral("vdrvV"),
+                           m_settings.value(QStringLiteral("vdrvV"), 3.3).toDouble());
+    result->metrics.insert(QStringLiteral("vccV"),
+                           m_settings.value(QStringLiteral("vccV"), 5.0).toDouble());
+    result->metrics.insert(QStringLiteral("periodMs"),
+                           m_settings.value(QStringLiteral("periodMs"), 4.0).toDouble());
+    result->metrics.insert(QStringLiteral("tonMs"),
+                           m_settings.value(QStringLiteral("tonMs"), 2.0).toDouble());
+    result->metrics.insert(QStringLiteral("sampleRateHz"),
+                           m_settings.value(QStringLiteral("sampleRateHz"), 1000000.0).toDouble());
 
     return true;
-}
-
-bool TransistorTpsPlugin::collectSignalSeries(const TPSRequest &request, SignalSeries *series) const
-{
-    if (!series) {
-        return false;
-    }
-
-    series->vc.clear();
-    series->ve.clear();
-    series->icSense.clear();
-    series->ibSense.clear();
-    series->sampleRateHz = m_settings.value(QStringLiteral("sampleRateHz"), 1000000.0).toDouble();
-
-    for (const UTRItem &item : request.items) {
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("transistorVcInput.samples")), &series->vc);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("transistorVeInput.samples")), &series->ve);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("transistorIcSenseInput.samples")), &series->icSense);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("transistorIbSenseInput.samples")), &series->ibSense);
-
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("vcSamples")), &series->vc);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("veSamples")), &series->ve);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("icSenseSamples")), &series->icSense);
-        appendSamplesFromVariant(item.parameters.value(QStringLiteral("ibSenseSamples")), &series->ibSense);
-
-        if (item.parameters.contains(QStringLiteral("sampleRateHz"))) {
-            bool ok = false;
-            const double fs = item.parameters.value(QStringLiteral("sampleRateHz")).toDouble(&ok);
-            if (ok && fs > 0.0) {
-                series->sampleRateHz = fs;
-            }
-        }
-    }
-
-    const int count = qMin(qMin(series->vc.size(), series->ve.size()), qMin(series->icSense.size(), series->ibSense.size()));
-    if (count <= 8 || series->sampleRateHz <= 0.0) {
-        return false;
-    }
-
-    series->vc.resize(count);
-    series->ve.resize(count);
-    series->icSense.resize(count);
-    series->ibSense.resize(count);
-    return true;
-}
-
-void TransistorTpsPlugin::appendSamplesFromVariant(const QVariant &value, QVector<double> *samples)
-{
-    if (!samples) {
-        return;
-    }
-
-    if (value.canConvert<QVariantList>()) {
-        const QVariantList list = value.toList();
-        for (const QVariant &item : list) {
-            bool ok = false;
-            const double sample = item.toDouble(&ok);
-            if (ok) {
-                samples->push_back(sample);
-            }
-        }
-        return;
-    }
-
-    const QString text = value.toString().trimmed();
-    if (text.isEmpty()) {
-        return;
-    }
-
-    QJsonParseError parseError;
-    const QJsonDocument json = QJsonDocument::fromJson(text.toUtf8(), &parseError);
-    if (parseError.error == QJsonParseError::NoError && json.isArray()) {
-        const QJsonArray arr = json.array();
-        for (const QJsonValue &v : arr) {
-            if (v.isDouble()) {
-                samples->push_back(v.toDouble());
-            }
-        }
-        return;
-    }
-
-    const QStringList tokens = text.split(QRegularExpression(QStringLiteral("[,;\\s]+")), Qt::SkipEmptyParts);
-    for (const QString &token : tokens) {
-        bool ok = false;
-        const double sample = token.toDouble(&ok);
-        if (ok) {
-            samples->push_back(sample);
-        }
-    }
 }
 
 const TPSPortBinding *TransistorTpsPlugin::findBinding(const QVector<TPSPortBinding> &bindings, const QString &identifier)
@@ -807,68 +619,7 @@ QString TransistorTpsPlugin::anchorText(const QMap<QString, QVariant> &settings,
     return text.isEmpty() ? QStringLiteral("-1") : text;
 }
 
-double TransistorTpsPlugin::meanOf(const QVector<double> &values, const QVector<int> &indices)
-{
-    if (values.isEmpty() || indices.isEmpty()) {
-        return 0.0;
-    }
-
-    double sum = 0.0;
-    int count = 0;
-    for (int idx : indices) {
-        if (idx >= 0 && idx < values.size()) {
-            sum += values.at(idx);
-            ++count;
-        }
-    }
-
-    return count > 0 ? sum / static_cast<double>(count) : 0.0;
-}
-
-QVector<int> TransistorTpsPlugin::buildWindowIndices(int sampleCount,
-                                                     int samplesPerPeriod,
-                                                     int startOffset,
-                                                     int endOffset,
-                                                     int baseOffset)
-{
-    QVector<int> indices;
-    if (sampleCount <= 0 || samplesPerPeriod <= 0 || endOffset <= startOffset) {
-        return indices;
-    }
-
-    for (int periodBase = 0; periodBase < sampleCount; periodBase += samplesPerPeriod) {
-        const int from = periodBase + baseOffset + startOffset;
-        const int to = periodBase + baseOffset + endOffset;
-        for (int idx = from; idx < to && idx < sampleCount; ++idx) {
-            if (idx >= 0) {
-                indices.push_back(idx);
-            }
-        }
-    }
-
-    return indices;
-}
-
 int TransistorTpsPlugin::expectedMode() const
 {
     return resolveModeValue(m_settings.value(QStringLiteral("expectedMode")), 0);
-}
-
-QString TransistorTpsPlugin::modeName(int mode)
-{
-    switch (mode) {
-    case 0:
-        return QStringLiteral("MODE0(Normal)");
-    case 1:
-        return QStringLiteral("MODE1(Beta_Drift)");
-    case 2:
-        return QStringLiteral("MODE2(Open)");
-    case 3:
-        return QStringLiteral("MODE3(Short_Breakdown)");
-    case 4:
-        return QStringLiteral("MODE4(Leakage)");
-    default:
-        break;
-    }
-    return QStringLiteral("MODE?(Unknown)");
 }

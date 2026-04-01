@@ -43,6 +43,8 @@ void JYDataPipeline::ingest(const JYDataPacket &packet)
         emit packetRejected(packet.kind, reason);
         return;
     }
+    // packetReady 保留原始设备粒度的数据；
+    // alignedBatchReady 则由 aligner 在后续按统一时间轴重建。
     emit packetIngested(packet.kind, packet.channelCount, packet.data.size(), packet.timestampMs);
     emit packetReady(packet);
     if (m_aligner) {
@@ -52,6 +54,7 @@ void JYDataPipeline::ingest(const JYDataPacket &packet)
 
 bool JYDataPipeline::validate(const JYDataPacket &packet, QString *reason) const
 {
+    // 这里只做最基础的结构校验，采样率/对齐窗口等约束交由 aligner 处理。
     if (packet.channelCount <= 0) {
         if (reason) *reason = QStringLiteral("invalid channel count");
         return false;

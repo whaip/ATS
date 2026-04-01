@@ -92,6 +92,7 @@ void JYDeviceWorker::postTrigger()
             return;
         }
         if (m_adapter->trigger(&error)) {
+            // 5711 是输出设备，不需要持续 read；其余输入设备在 trigger 后开启读数循环。
             m_dataLoop = (kind() != JYDeviceKind::PXIe5711);
             setState(JYDeviceState::Running, QStringLiteral("running"));
         } else {
@@ -211,6 +212,7 @@ void JYDeviceWorker::runLoop()
         std::function<void()> task;
         {
             std::unique_lock<std::mutex> lock(m_mutex);
+            // 没有数据循环时以“被控制指令唤醒”为主；有数据循环时则尽快回到 read()。
             if (!m_dataLoop) {
                 m_cv.wait_for(lock, std::chrono::milliseconds(100), [this]() {
                     return m_stopRequested || !m_queue.empty();
@@ -232,6 +234,9 @@ void JYDeviceWorker::runLoop()
         }
 
         if (m_dataLoop) {
+            // 读数失败分成两类：
+            // 1. 有错误字符串：认为底层故障，置 Faulted；
+            // 2. 无错误字符串：通常表示当前尚无可读数据，继续下一轮。
             QString error;
             JYDataPacket packet;
             if (m_adapter->read(&packet, &error)) {

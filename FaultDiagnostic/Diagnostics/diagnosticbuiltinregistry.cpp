@@ -1,6 +1,7 @@
 #include "diagnosticbuiltinregistry.h"
 
 #include "diagnosticpluginmanager.h"
+#include "Plugins/examplediagnosticplugin.h"
 #include "Plugins/capacitordiagnosticplugin.h"
 #include "Plugins/inductordiagnosticplugin.h"
 #include "Plugins/multitpsdiagnosticplugin.h"
@@ -14,6 +15,7 @@ void registerDefaultDiagnosticBuiltins(DiagnosticPluginManager *manager, QObject
         return;
     }
 
+    manager->addBuiltin(new ExampleDiagnosticPlugin(parentForPlugins));
     manager->addBuiltin(new MultiTpsDiagnosticPlugin(parentForPlugins));
     manager->addBuiltin(new CapacitorDiagnosticPlugin(parentForPlugins));
     manager->addBuiltin(new InductorDiagnosticPlugin(parentForPlugins));
