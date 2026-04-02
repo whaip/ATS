@@ -43,10 +43,10 @@ JYDeviceConfig build5711InitConfig()
     config.cfg5711.enabledChannels = {0};
     JY5711WaveformConfig wf;
     wf.channel = 0;
-    wf.type = PXIe5711_testtype::HighLevelWave;
-    wf.amplitude = 0.0;
-    wf.frequency = 0.0;
-    wf.dutyCycle = 1.0;
+    wf.waveformId = QStringLiteral("HighLevelWave");
+    wf.params = PXIe5711_default_param_map(wf.waveformId);
+    wf.params.insert(QStringLiteral("amplitude"), 0.0);
+    wf.ensureValid();
     config.cfg5711.waveforms = {wf};
     return config;
 }

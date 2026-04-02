@@ -1,5 +1,6 @@
 #include "datacapturecard.h"
 #include "ui_datacapturecard.h"
+#include "waveformdatamanager.h"
 #include "../uestcqcustomplot.h"
 #include "../JYDevices/jythreadmanager.h"
 #include "../../include/JY8902.h"
@@ -26,6 +27,59 @@ DataCaptureCard::DataCaptureCard(QWidget *parent)
     , ui(new Ui::DataCaptureCard)
 {
     ui->setupUi(this);
+    m_waveformManager = new WaveformDataManager(this);
+    m_waveformManager->setRetentionSeconds(m_displayRetentionSeconds);
+    m_waveformManager->setStoragePointBudget(qMax(1000, m_displayMaxPoints * 6));
+    connect(m_waveformManager, &WaveformDataManager::viewReady, this, [this](const WaveformViewFrame &frame) {
+        if (!m_plot || m_useTestData) {
+            return;
+        }
+        m_lastFrameLatestX = frame.latestX;
+
+        QHash<QString, WaveformViewSeries> viewByKey;
+        for (const auto &series : frame.series) {
+            viewByKey.insert(series.key, series);
+        }
+
+        QVector<QCPGraph *> graphs;
+        QVector<QVector<double>> xBuffers;
+        QVector<QVector<double>> yBuffers;
+        graphs.reserve(m_channels.size());
+        xBuffers.reserve(m_channels.size());
+        yBuffers.reserve(m_channels.size());
+
+        for (auto &slot : m_channels) {
+            if (!slot.graph || !slot.check || !slot.check->isChecked()) {
+                continue;
+            }
+
+            const QString key = WaveformDataManager::seriesKey(slot.kind, slot.channel);
+            const auto it = viewByKey.constFind(key);
+            graphs.push_back(slot.graph);
+            if (it == viewByKey.cend()) {
+                xBuffers.push_back({});
+                yBuffers.push_back({});
+                slot.buffer.clear();
+            } else {
+                xBuffers.push_back(it->x);
+                yBuffers.push_back(it->y);
+                slot.buffer = it->y;
+            }
+        }
+
+        m_updatingPlotView = true;
+        m_plot->updateRealTimeSeries(graphs, xBuffers, yBuffers, true);
+        m_updatingPlotView = false;
+    }, Qt::QueuedConnection);
+    m_viewRefreshTimer = new QTimer(this);
+    m_viewRefreshTimer->setInterval(50);
+    connect(m_viewRefreshTimer, &QTimer::timeout, this, [this]() {
+        if (m_useTestData || !m_viewRefreshPending) {
+            return;
+        }
+        m_viewRefreshPending = false;
+        flushAlignedWindowToPlot();
+    });
 
     m_8902Config.measurementFunction = JY8902_DMM_MeasurementFunction::JY8902_DC_Volts;
     m_8902Config.range = JY8902_DMM_DC_VoltRange::JY8902_DC_Volt_Auto;
@@ -152,9 +206,24 @@ void DataCaptureCard::initPlotLines()
     if (!m_plot) {
         return;
     }
+    m_plot->setDisplayWindowSeconds(m_displayRetentionSeconds);
+    if (m_waveformManager) {
+        m_waveformManager->setStoragePointBudget(qMax(1000, m_plot->plotAreaWidth() * 6));
+    }
     m_graphs.clear();
     m_buffers.clear();
     rebuildActiveGraphs();
+    connect(m_plot->xAxis, qOverload<const QCPRange &>(&QCPAxis::rangeChanged), this,
+            [this](const QCPRange &) {
+                if (m_useTestData || m_updatingPlotView) {
+                    return;
+                }
+                if (!m_running) {
+                    flushAlignedWindowToPlot();
+                    return;
+                }
+                m_viewRefreshPending = true;
+            }, Qt::UniqueConnection);
 }
 
 QFrame *DataCaptureCard::createChannelCard(JYDeviceKind kind, int channel, const QColor &color)
@@ -221,6 +290,7 @@ QFrame *DataCaptureCard::createChannelCard(JYDeviceKind kind, int channel, const
         }
         updateChannelStatus(m_channels[idx], on);
         rebuildActiveGraphs();
+        m_viewRefreshPending = true;
     });
 
     return card;
@@ -307,6 +377,23 @@ void DataCaptureCard::setRunning(bool running)
             m_simTimer->stop();
         }
     }
+    if (m_viewRefreshTimer) {
+        if (!m_useTestData) {
+            m_viewRefreshTimer->start();
+            if (running) {
+                m_viewRefreshPending = true;
+            }
+        } else {
+            m_viewRefreshTimer->stop();
+            m_viewRefreshPending = false;
+        }
+    }
+    if (running && m_waveformManager && !m_useTestData) {
+        m_waveformManager->resetForCapture(0);
+        m_lastFrameLatestX = 0.0;
+    } else if (!running && m_plot && !m_useTestData) {
+        flushAlignedWindowToPlot();
+    }
 }
 qint64 DataCaptureCard::plotIntervalUsForSelection(const QSet<int> &channels5322,
                                                    const QSet<int> &channels5323,
@@ -340,6 +427,11 @@ void DataCaptureCard::setJYThreadManager(JYThreadManager *manager)
         }
     }
     if (m_manager && m_manager->pipeline()) {
+        JYDataAligner::Settings alignSettings;
+        alignSettings.windowMs = 3000;
+        alignSettings.maxAgeMs = 5000;
+        m_manager->pipeline()->setAlignSettings(alignSettings);
+
         connect(m_manager->pipeline(), &JYDataPipeline::alignedBatchReady,
                 this, &DataCaptureCard::onAlignedBatch, Qt::QueuedConnection);
         connect(m_manager->pipeline(), &JYDataPipeline::packetIngested, this,
@@ -378,6 +470,9 @@ void DataCaptureCard::onAlignedBatch(const JYAlignedBatch &batch)
 
     ++m_batchCount;
     m_lastBatchTs = batch.timestampMs;
+    if (m_waveformManager && m_batchCount == 1) {
+        m_waveformManager->setEpoch(static_cast<quint64>(batch.timestampMs));
+    }
     if (m_labelCaptureStatus) {
         QStringList parts;
         for (auto it = batch.packets.begin(); it != batch.packets.end(); ++it) {
@@ -395,11 +490,15 @@ void DataCaptureCard::onAlignedBatch(const JYAlignedBatch &batch)
                                        .arg(detail));
     }
 
-    for (auto it = batch.packets.begin(); it != batch.packets.end(); ++it) {
-        appendPacketToBuffers(it.key(), it.value());
+    if (m_waveformManager) {
+        m_waveformManager->appendAlignedBatch(batch);
+        m_viewRefreshPending = true;
+    } else {
+        for (auto it = batch.packets.begin(); it != batch.packets.end(); ++it) {
+            appendPacketToBuffers(it.key(), it.value());
+        }
+        flushAlignedWindowToPlot();
     }
-
-    flushAlignedWindowToPlot();
     ++m_sampleIndex;
 }
 
@@ -476,6 +575,11 @@ void DataCaptureCard::appendPacketToBuffers(JYDeviceKind kind, const JYDataPacke
 
 bool DataCaptureCard::hasWindowReady(const QSet<int> &channels, JYDeviceKind kind) const
 {
+    Q_UNUSED(channels)
+    Q_UNUSED(kind)
+    if (m_waveformManager) {
+        return true;
+    }
     if (channels.isEmpty()) {
         return true;
     }
@@ -533,6 +637,39 @@ void DataCaptureCard::flushAlignedWindowToPlot()
     if (!hasWindowReady(sel5322, JYDeviceKind::PXIe5322)
         || !hasWindowReady(sel5323, JYDeviceKind::PXIe5323)
         || !hasWindowReady(sel8902, JYDeviceKind::PXIe8902)) {
+        return;
+    }
+
+    if (m_waveformManager) {
+        QSet<QString> activeSeries;
+        QStringList seriesKeys;
+        seriesKeys.reserve(m_channels.size());
+        for (const auto &slot : m_channels) {
+            if (slot.graph && slot.check && slot.check->isChecked()) {
+                const QString key = WaveformDataManager::seriesKey(slot.kind, slot.channel);
+                activeSeries.insert(key);
+                seriesKeys.push_back(key);
+            }
+        }
+
+        m_waveformManager->setActiveSeries(activeSeries);
+        if (seriesKeys.isEmpty()) {
+            return;
+        }
+
+        const int pixelWidth = m_plot ? qMax(64, m_plot->plotAreaWidth()) : m_displayMaxPoints;
+        m_waveformManager->setStoragePointBudget(qMax(1000, pixelWidth * 6));
+        const bool autoFollow = m_plot ? !m_plot->isUserOverrideActive() : true;
+        const double xLower = (m_plot && !autoFollow) ? qMax(0.0, m_plot->visibleLowerBound()) : 0.0;
+        const double xUpper = (m_plot && !autoFollow)
+            ? qMin(m_displayRetentionSeconds, m_plot->visibleUpperBound())
+            : m_displayRetentionSeconds;
+        m_waveformManager->requestView(seriesKeys,
+                                       xLower,
+                                       xUpper,
+                                       m_displayRetentionSeconds,
+                                       pixelWidth,
+                                       autoFollow);
         return;
     }
 
@@ -660,11 +797,16 @@ void DataCaptureCard::rebuildActiveGraphs()
 
     m_activeGraphs.clear();
     m_activeBuffers.clear();
+    QSet<QString> activeSeries;
     for (const auto &slot : m_channels) {
         if (slot.graph) {
             m_activeGraphs.push_back(slot.graph);
             m_activeBuffers.push_back(slot.buffer);
+            activeSeries.insert(WaveformDataManager::seriesKey(slot.kind, slot.channel));
         }
+    }
+    if (m_waveformManager) {
+        m_waveformManager->setActiveSeries(activeSeries);
     }
 }
 

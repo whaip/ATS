@@ -2,7 +2,6 @@
 #define UESTCQCUSTOMPLOT_H
 
 #include <QtCore/QObject>
-#include <QtCore/QDateTime>
 #include <QtCore/QHash>
 #include <QtCore/QVector>
 
@@ -10,6 +9,7 @@ class QEvent;
 
 #include "../include/qcustomplot.h"
 
+class QCPAxisTicker;
 class QToolButton;
 class QTimer;
 
@@ -24,10 +24,14 @@ public:
     void updateRealTimeLines(const QVector<QCPGraph *> &graphs,
                              const QVector<QVector<double>> &buffers,
                              const QVector<qint64> &intervalsUs);
+    void updateRealTimeSeries(const QVector<QCPGraph *> &graphs,
+                              const QVector<QVector<double>> &xBuffers,
+                              const QVector<QVector<double>> &yBuffers,
+                              bool autoFollow);
 
     QCPGraph *addStaticLine(const QString &name, const QVector<double> &x, const QVector<double> &y,
                             const QColor &color = QColor());
-    void updateStaticLine(QCPGraph *graph, const QVector<double> &x, const QVector<double> &y);
+    void updateStaticLine(QCPGraph *graph, const QVector<double> &x, const QVector<double> &y, bool rescale = true);
     void removeStaticLine(const QString &name);
 
     void setSampleIntervalMicroseconds(qint64 intervalUs);
@@ -36,8 +40,12 @@ public:
     void setAutoRangePadding(double ratio);
     void setAutoRangeResumeMs(int ms);
     void setDisplayWindowSeconds(double seconds);
+    void resetAutoView();
     bool isUserOverrideActive() const;
     double visibleWindowSeconds() const;
+    double visibleLowerBound() const;
+    double visibleUpperBound() const;
+    int plotAreaWidth() const;
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -56,6 +64,8 @@ private:
     QCPGraph *pickNearestGraph(const QPoint &pos, double *outKey, double *outValue);
     void markUserInteraction();
     void resumeAutoRange();
+    bool computeVisibleYRange(double xLower, double xUpper, double *outMin, double *outMax) const;
+    void applyVisibleAutoRange(bool resetX);
     void applyYAxisPadding();
     void downsampleStatic(const QVector<double> &x, const QVector<double> &y,
                           QVector<double> *outX, QVector<double> *outY, int maxPoints) const;
@@ -66,19 +76,19 @@ private slots:
     void handleMouseDoubleClick(QMouseEvent *event);
 
 private:
-    QSharedPointer<QCPAxisTickerDateTime> m_timeTicker;
+    QSharedPointer<QCPAxisTicker> m_timeTicker;
     QHash<QString, QCPGraph *> m_staticGraphs;
     QHash<QString, QCPGraph *> m_realTimeGraphs;
+    QHash<QCPGraph *, QPen> m_graphBasePens;
 
     qint64 m_sampleIntervalUs = 50000;
-    qint64 m_lastTimestampUs = 0;
     bool m_timeAxisEnabled = true;
     bool m_autoRangeEnabled = true;
     bool m_userOverride = false;
     double m_autoRangePadding = 0.08;
     int m_autoRangeResumeMs = 30000;
     QTimer *m_autoResumeTimer = nullptr;
-    double m_displayWindowSeconds = 0.01;
+    double m_displayWindowSeconds = 1.0;
     int m_staticMaxPoints = 1000000;
 
     QCPItemTracer *m_tracer = nullptr;

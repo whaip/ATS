@@ -29,30 +29,7 @@ public:
     bool execute(const TPSRequest &request, TPSResult *result, QString *error) override;
 
 private:
-    struct SignalSeriesPair {
-        QVector<double> vin;
-        QVector<double> vcap;
-        double sampleRateHz = 0.0;
-    };
-
-    struct FeatureSet {
-        double vinAmplitude = 0.0;
-        double vcapAmplitude = 0.0;
-        double gain = 0.0;
-        double highRetention = 0.0;
-        double estimatedTauSec = 0.0;
-        double nominalTauSec = 0.0;
-        double edgeDrop = 0.0;
-        int sampleCount = 0;
-    };
-
-    bool collectSignalSeries(const TPSRequest &request, SignalSeriesPair *series) const;
-    FeatureSet estimateFeatures(const SignalSeriesPair &series) const;
-    int classifyMode(const FeatureSet &features) const;
     int expectedMode() const;
-
-    static void appendSamplesFromVariant(const QVariant &value, QVector<double> *samples);
-    static QString modeName(int mode);
     static const TPSPortBinding *findBinding(const QVector<TPSPortBinding> &bindings, const QString &identifier);
 
     QMap<QString, QVariant> m_settings;

@@ -6,12 +6,12 @@
 #include <QVector>
 #include <QWidget>
 
-#include "../JYDevices/5711waveformconfig.h"
 #include "../JYDevices/jydevicetype.h"
 
 class JYDeviceWorker;
 class JYThreadManager;
 class QCheckBox;
+class QEvent;
 class QFrame;
 class QGridLayout;
 class QLabel;
@@ -42,12 +42,7 @@ protected:
 private:
     struct ChannelConfig {
         enum class Mode { Current, Voltage } mode = Mode::Current;
-        double currentMa = 4.0;
-        PXIe5711_testtype waveform = PXIe5711_testtype::SineWave;
-        double amplitude = 1.0;
-        double duty = 0.5;
-        double frequency = 1000.0;
-        double offset = 0.0;
+        JY5711WaveformConfig waveform;
     };
 
     struct ChannelWidgets {
@@ -65,7 +60,7 @@ private:
     void updateChannelSummary(int channel);
     void updateChannelStatus(int channel, const QString &text);
     void openChannelEditor(int channel);
-    QVector<PXIe5711_testtype> waveformOptions() const;
+    QVector<QString> waveformOptions() const;
     JYDeviceConfig build5711Config(const QVector<int> &channels) const;
     void ensure5711Worker();
 

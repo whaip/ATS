@@ -363,18 +363,16 @@ QJsonObject TestTaskContextManager::configToJson(const JYDeviceConfig &config)
 
     QJsonArray waveforms;
     for (const auto &waveform : config.cfg5711.waveforms) {
+        JY5711WaveformConfig normalizedWaveform = waveform;
+        normalizedWaveform.ensureValid();
         QJsonObject item;
-        item.insert(QStringLiteral("channel"), waveform.channel);
-        item.insert(QStringLiteral("waveformType"), static_cast<int>(waveform.type));
-        item.insert(QStringLiteral("amplitude"), waveform.amplitude);
-        item.insert(QStringLiteral("frequency"), waveform.frequency);
-        item.insert(QStringLiteral("dutyCycle"), waveform.dutyCycle);
-        item.insert(QStringLiteral("pulseVLow"), waveform.pulseVLow);
-        item.insert(QStringLiteral("pulseVHigh"), waveform.pulseVHigh);
-        item.insert(QStringLiteral("pulseTDelay"), waveform.pulseTDelay);
-        item.insert(QStringLiteral("pulseTOn"), waveform.pulseTOn);
-        item.insert(QStringLiteral("pulseTPeriod"), waveform.pulseTPeriod);
-        item.insert(QStringLiteral("pulseUseTiming"), waveform.pulseUseTiming);
+        item.insert(QStringLiteral("channel"), normalizedWaveform.channel);
+        item.insert(QStringLiteral("waveformId"), normalizedWaveform.waveformId);
+        QJsonObject params;
+        for (auto it = normalizedWaveform.params.cbegin(); it != normalizedWaveform.params.cend(); ++it) {
+            params.insert(it.key(), it.value());
+        }
+        item.insert(QStringLiteral("params"), params);
         waveforms.append(item);
     }
     c5711.insert(QStringLiteral("waveforms"), waveforms);

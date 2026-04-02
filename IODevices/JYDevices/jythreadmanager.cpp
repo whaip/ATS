@@ -20,6 +20,7 @@ JYDeviceWorker *JYThreadManager::create532xWorker(JYDeviceKind kind)
         return existing;
     }
 
+    // 创建输入板 worker 后，统一接入 orchestrator 和 pipeline。
 	auto adapter = createJY532xAdapter(kind);
 	auto *worker = new JYDeviceWorker(std::move(adapter), this);
 	worker->start();
@@ -49,6 +50,7 @@ JYDeviceWorker *JYThreadManager::create5711Worker()
         return existing;
     }
 
+    // 5711 主要承担输出，不会像采集卡一样持续向 pipeline 推送有效数据包。
 	auto adapter = createJY5711Adapter();
 	auto *worker = new JYDeviceWorker(std::move(adapter), this);
 	worker->start();
@@ -78,6 +80,7 @@ JYDeviceWorker *JYThreadManager::create8902Worker()
         return existing;
     }
 
+    // 8902 读数频率相对较低，但仍复用相同的 worker + pipeline 框架。
 	auto adapter = createJY8902Adapter();
 	auto *worker = new JYDeviceWorker(std::move(adapter), this);
 	worker->start();
@@ -118,6 +121,7 @@ bool JYThreadManager::isDeviceInitialized(JYDeviceKind kind) const
 
 void JYThreadManager::shutdown()
 {
+    // 先请求底层设备关闭，再停止线程，避免线程退出时设备仍占用驱动资源。
 	for (auto *worker : m_workers) {
 		if (!worker) continue;
 		worker->postClose();

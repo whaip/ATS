@@ -5,6 +5,7 @@
 #include "../Workflow/WiringGuide/wiringguidedialog.h"
 #include "../TPS/Core/tpsruntimecontext.h"
 #include "../TPS/Manager/tpsbuiltinregistry.h"
+#include "../Diagnostics/diagnosticbuiltinregistry.h"
 
 #include "../../ComponentsDetect/componenttypes.h"
 #include "../../IRCamera/ircamera.h"
@@ -19,6 +20,8 @@
 #include "../Core/captureddatamanager.h"
 #include "../../IODevices/JYDevices/jydeviceconfigutils.h"
 #include <QMessageBox>
+#include <QPointer>
+#include <QtConcurrent/QtConcurrentRun>
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -176,6 +179,91 @@ QVector<double> buildUniformTimelineForDuration(int sampleCount, double duration
     return timeline;
 }
 
+QPair<QVector<double>, QVector<double>> reduceCurveForViewport(const QVector<double> &xs,
+                                                               const QVector<double> &ys,
+                                                               double xLower,
+                                                               double xUpper,
+                                                               int pixelWidth)
+{
+    if (xs.isEmpty() || ys.isEmpty() || xs.size() != ys.size()) {
+        return {};
+    }
+
+    if (xUpper < xLower) {
+        std::swap(xLower, xUpper);
+    }
+
+    int begin = 0;
+    int end = xs.size();
+    if (xUpper > xLower) {
+        begin = static_cast<int>(std::lower_bound(xs.cbegin(), xs.cend(), xLower) - xs.cbegin());
+        end = static_cast<int>(std::upper_bound(xs.cbegin(), xs.cend(), xUpper) - xs.cbegin());
+        begin = qBound(0, begin, xs.size());
+        end = qBound(begin, end, xs.size());
+    }
+
+    if (begin >= end) {
+        return {};
+    }
+
+    const int count = end - begin;
+    const int safePixelWidth = qMax(64, pixelWidth);
+    const int maxPoints = safePixelWidth * 2;
+    if (count <= maxPoints) {
+        QVector<double> dx;
+        QVector<double> dy;
+        dx.reserve(count);
+        dy.reserve(count);
+        for (int i = begin; i < end; ++i) {
+            dx.push_back(xs.at(i));
+            dy.push_back(ys.at(i));
+        }
+        return qMakePair(dx, dy);
+    }
+
+    QVector<double> dx;
+    QVector<double> dy;
+    const int bucketCount = qMax(1, safePixelWidth);
+    const double bucketSize = static_cast<double>(count) / static_cast<double>(bucketCount);
+    dx.reserve(bucketCount * 2 + 2);
+    dy.reserve(bucketCount * 2 + 2);
+
+    for (int bucket = 0; bucket < bucketCount; ++bucket) {
+        const int bucketBegin = begin + static_cast<int>(bucket * bucketSize);
+        const int bucketEnd = qMin(end, begin + static_cast<int>((bucket + 1) * bucketSize));
+        if (bucketBegin >= bucketEnd) {
+            continue;
+        }
+
+        int minIndex = bucketBegin;
+        int maxIndex = bucketBegin;
+        for (int i = bucketBegin + 1; i < bucketEnd; ++i) {
+            if (ys.at(i) < ys.at(minIndex)) {
+                minIndex = i;
+            }
+            if (ys.at(i) > ys.at(maxIndex)) {
+                maxIndex = i;
+            }
+        }
+
+        if (minIndex <= maxIndex) {
+            dx.push_back(xs.at(minIndex));
+            dy.push_back(ys.at(minIndex));
+            if (maxIndex != minIndex) {
+                dx.push_back(xs.at(maxIndex));
+                dy.push_back(ys.at(maxIndex));
+            }
+        } else {
+            dx.push_back(xs.at(maxIndex));
+            dy.push_back(ys.at(maxIndex));
+            dx.push_back(xs.at(minIndex));
+            dy.push_back(ys.at(minIndex));
+        }
+    }
+
+    return qMakePair(dx, dy);
+}
+
 int componentIdFromRef(const QString &componentRef)
 {
     const QString trimmed = componentRef.trimmed();
@@ -326,6 +414,201 @@ QPointF maxTemperaturePointInRect(const IRCameraStation::Frame &frame, const QRe
                    (bestY + 0.5) * frame.irImage.height() / frame.matrixSize.height());
 }
 
+struct DiagnosticTaskSnapshot {
+    QString taskId;
+    QString componentId;
+    QString pluginId;
+    QMap<QString, QVariant> settings;
+    QVector<TPSPortBinding> bindings;
+};
+
+struct CaptureFinalizeSnapshot {
+    IRCameraStation::Frame frame;
+    IRCameraStation::Frame alarmFrame;
+    IRCameraStation::PointResult point;
+    QMap<QString, IRCameraStation::BoxResult> boxes;
+    bool hasFrame = false;
+    bool hasAlarmFrame = false;
+    bool hasPoint = false;
+    bool hasBatch = false;
+    bool alarmTriggered = false;
+    bool hasAlarmRect = false;
+    bool hasAlarmPoint = false;
+    QPointF alarmPoint;
+    QRectF alarmRect;
+    double alarmThresholdC = std::numeric_limits<double>::quiet_NaN();
+    double alarmMaxTempC = std::numeric_limits<double>::quiet_NaN();
+    QString alarmSourceId;
+    QVector<double> tempValues;
+    CapturedDataManager dataManager;
+    JYAlignedBatch lastBatch;
+};
+
+struct DiagnosticWorkResult {
+    QString taskId;
+    QString runId;
+    QString componentId;
+    DiagnosticReport report;
+    QString diagError;
+    QMap<QString, DiagnosticSignalSeries> signalSeries;
+    FaultDiagnostic::ComponentViewData view;
+};
+
+void appendSeriesFromPacket(const JYDataPacket &packet,
+                            double sampleRate,
+                            QVector<double> *times,
+                            QVector<double> *values)
+{
+    if (!times || !values || packet.channelCount <= 0) {
+        return;
+    }
+    const int samples = packet.data.size() / packet.channelCount;
+    if (samples <= 0) {
+        return;
+    }
+    const double dtMs = 1000.0 / sampleRate;
+    for (int i = 0; i < samples; ++i) {
+        const int idx = i * packet.channelCount;
+        if (idx < 0 || idx >= packet.data.size()) {
+            continue;
+        }
+        const double tMs = i * dtMs;
+        times->push_back(tMs / 1000.0);
+        values->push_back(packet.data[idx]);
+    }
+}
+
+QString buildTemperatureHtml(const CaptureFinalizeSnapshot &capture)
+{
+    QString tempHtml;
+    if (capture.hasPoint) {
+        tempHtml += QStringLiteral("<p>ç‚¹æ¸©åº¦ï¼š%1 â„ƒ</p>").arg(capture.point.temp, 0, 'f', 2);
+    }
+    if (!capture.boxes.isEmpty()) {
+        if (capture.boxes.size() == 1) {
+            const auto box = capture.boxes.constBegin().value();
+            tempHtml += QStringLiteral("<p>æ¡†æ¸©åº¦(min/avg/max)ï¼š%1 / %2 / %3 â„ƒ</p>")
+                .arg(box.minTemp, 0, 'f', 2)
+                .arg(box.avgTemp, 0, 'f', 2)
+                .arg(box.maxTemp, 0, 'f', 2);
+        } else {
+            QStringList boxLines;
+            boxLines.reserve(capture.boxes.size());
+            for (auto it = capture.boxes.begin(); it != capture.boxes.end(); ++it) {
+                boxLines.push_back(
+                    QStringLiteral("%1(min/avg/max)ï¼š%2 / %3 / %4 â„ƒ")
+                        .arg(it.key())
+                        .arg(it.value().minTemp, 0, 'f', 2)
+                        .arg(it.value().avgTemp, 0, 'f', 2)
+                        .arg(it.value().maxTemp, 0, 'f', 2));
+            }
+            tempHtml += QStringLiteral("<p>æ¡†æ¸©åº¦ï¼š%1</p>").arg(boxLines.join(QStringLiteral("ï¼›")));
+        }
+    }
+    if (capture.alarmTriggered) {
+        tempHtml += QStringLiteral("<p>æµ‹æ¸©åŒºåŸŸæ¸©åº¦è¾¾åˆ°æˆ–è¶…è¿‡é¢„è­¦é˜ˆå€¼ï¼Œæµ‹è¯•å·²åœæ­¢ã€‚</p>");
+    }
+    return tempHtml;
+}
+
+QString buildTemperatureHtmlClean(const CaptureFinalizeSnapshot &capture)
+{
+    QString tempHtml;
+    if (capture.hasPoint) {
+        tempHtml += QStringLiteral("<p>点温度：%1 ℃</p>").arg(capture.point.temp, 0, 'f', 2);
+    }
+    if (!capture.boxes.isEmpty()) {
+        if (capture.boxes.size() == 1) {
+            const auto box = capture.boxes.constBegin().value();
+            tempHtml += QStringLiteral("<p>框温度(min/avg/max)：%1 / %2 / %3 ℃</p>")
+                .arg(box.minTemp, 0, 'f', 2)
+                .arg(box.avgTemp, 0, 'f', 2)
+                .arg(box.maxTemp, 0, 'f', 2);
+        } else {
+            QStringList boxLines;
+            boxLines.reserve(capture.boxes.size());
+            for (auto it = capture.boxes.begin(); it != capture.boxes.end(); ++it) {
+                boxLines.push_back(
+                    QStringLiteral("%1(min/avg/max)：%2 / %3 / %4 ℃")
+                        .arg(it.key())
+                        .arg(it.value().minTemp, 0, 'f', 2)
+                        .arg(it.value().avgTemp, 0, 'f', 2)
+                        .arg(it.value().maxTemp, 0, 'f', 2));
+            }
+            tempHtml += QStringLiteral("<p>框温度：%1</p>").arg(boxLines.join(QStringLiteral("；")));
+        }
+    }
+    if (capture.alarmTriggered) {
+        tempHtml += QStringLiteral("<p>测温区域温度达到或超过预警阈值，测试已停止。</p>");
+    }
+    return tempHtml;
+}
+
+FaultDiagnostic::ComponentViewData buildBaseView(const CaptureFinalizeSnapshot &capture)
+{
+    FaultDiagnostic::ComponentViewData view;
+    if (capture.hasAlarmFrame) {
+        view.thermalImage = capture.alarmFrame.irImage;
+        view.thermalMatrix = capture.alarmFrame.temperatureMatrix;
+        view.thermalMatrixSize = capture.alarmFrame.matrixSize;
+    } else if (capture.hasFrame) {
+        view.thermalImage = capture.frame.irImage;
+        view.thermalMatrix = capture.frame.temperatureMatrix;
+        view.thermalMatrixSize = capture.frame.matrixSize;
+    }
+    view.hasThermalAlarmPoint = capture.alarmTriggered && capture.hasAlarmPoint;
+    if (view.hasThermalAlarmPoint) {
+        view.thermalAlarmPoint = capture.alarmPoint;
+    }
+    return view;
+}
+
+void buildCaptureCurves(const CaptureFinalizeSnapshot &capture,
+                        QVector<double> *x5322,
+                        QVector<double> *y5322,
+                        QVector<double> *x5323,
+                        QVector<double> *y5323,
+                        QVector<double> *x8902,
+                        QVector<double> *y8902)
+{
+    if (x5322 && y5322 && !capture.dataManager.buildSeries(JYDeviceKind::PXIe5322, 0, x5322, y5322)
+        && capture.lastBatch.packets.contains(JYDeviceKind::PXIe5322)) {
+        appendSeriesFromPacket(capture.lastBatch.packets.value(JYDeviceKind::PXIe5322), 1000000.0, x5322, y5322);
+    }
+    if (x5323 && y5323 && !capture.dataManager.buildSeries(JYDeviceKind::PXIe5323, 0, x5323, y5323)
+        && capture.lastBatch.packets.contains(JYDeviceKind::PXIe5323)) {
+        appendSeriesFromPacket(capture.lastBatch.packets.value(JYDeviceKind::PXIe5323), 200000.0, x5323, y5323);
+    }
+    if (x8902 && y8902 && !capture.dataManager.buildSeries(JYDeviceKind::PXIe8902, 0, x8902, y8902)
+        && capture.lastBatch.packets.contains(JYDeviceKind::PXIe8902)) {
+        appendSeriesFromPacket(capture.lastBatch.packets.value(JYDeviceKind::PXIe8902), 1000.0, x8902, y8902);
+    }
+}
+
+void fillSignalCurves(const QMap<QString, DiagnosticSignalSeries> &signalSeries,
+                      FaultDiagnostic::ComponentViewData *view)
+{
+    if (!view) {
+        return;
+    }
+    for (auto it = signalSeries.begin(); it != signalSeries.end(); ++it) {
+        const QString &signalId = it.key();
+        const DiagnosticSignalSeries &series = it.value();
+        if (series.samples.isEmpty()) {
+            continue;
+        }
+        QVector<double> xs;
+        xs.reserve(series.samples.size());
+        const double sampleRate = series.sampleRateHz > 0.0 ? series.sampleRateHz : 1.0;
+        const double dt = 1.0 / sampleRate;
+        for (int sampleIndex = 0; sampleIndex < series.samples.size(); ++sampleIndex) {
+            xs.push_back(sampleIndex * dt);
+        }
+        view->signalXById.insert(signalId, xs);
+        view->signalYById.insert(signalId, series.samples);
+    }
+}
+
 QStringList resolveFocusTargets(const TPSDevicePlan &plan,
                                 const QMap<QString, QVariant> &settings,
                                 bool wiring)
@@ -430,18 +713,7 @@ FaultDiagnostic::FaultDiagnostic(QWidget *parent)
     m_diagPluginManager->setPluginDir(resolveExistingDirByCandidates({
         QStringLiteral("FaultDiagnostic/Diagnostics/Plugins")
     }));
-    m_multiSignalDiagnosticPlugin = new MultiTpsDiagnosticPlugin(this);
-    m_capacitorDiagnosticPlugin = new CapacitorDiagnosticPlugin(this);
-    m_inductorDiagnosticPlugin = new InductorDiagnosticPlugin(this);
-    m_resistorDiagnosticPlugin = new ResistorDiagnosticPlugin(this);
-    m_typicalDiagnosticPlugin = new TypicalDiagnosticPlugin(this);
-    m_transistorDiagnosticPlugin = new TransistorDiagnosticPlugin(this);
-    m_diagPluginManager->addBuiltin(m_multiSignalDiagnosticPlugin);
-    m_diagPluginManager->addBuiltin(m_capacitorDiagnosticPlugin);
-    m_diagPluginManager->addBuiltin(m_inductorDiagnosticPlugin);
-    m_diagPluginManager->addBuiltin(m_resistorDiagnosticPlugin);
-    m_diagPluginManager->addBuiltin(m_typicalDiagnosticPlugin);
-    m_diagPluginManager->addBuiltin(m_transistorDiagnosticPlugin);
+    registerDefaultDiagnosticBuiltins(m_diagPluginManager, m_diagPluginManager);
     m_diagPluginManager->loadAll(nullptr);
     m_diagnosticDispatcher.setPluginManager(m_diagPluginManager);
     m_taskContextManager = new TestTaskContextManager(this);
@@ -1509,6 +1781,185 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
                 }
             }
 
+            CaptureFinalizeSnapshot captureSnapshot;
+            captureSnapshot.frame = capture->frame;
+            captureSnapshot.alarmFrame = capture->alarmFrame;
+            captureSnapshot.point = capture->point;
+            captureSnapshot.boxes = capture->boxes;
+            captureSnapshot.hasFrame = capture->hasFrame;
+            captureSnapshot.hasAlarmFrame = capture->hasAlarmFrame;
+            captureSnapshot.hasPoint = capture->hasPoint;
+            captureSnapshot.hasBatch = capture->hasBatch;
+            captureSnapshot.alarmTriggered = capture->alarmTriggered;
+            captureSnapshot.hasAlarmRect = capture->hasAlarmRect;
+            captureSnapshot.hasAlarmPoint = capture->hasAlarmPoint;
+            captureSnapshot.alarmPoint = capture->alarmPoint;
+            captureSnapshot.alarmRect = capture->alarmRect;
+            captureSnapshot.alarmThresholdC = capture->alarmThresholdC;
+            captureSnapshot.alarmMaxTempC = capture->alarmMaxTempC;
+            captureSnapshot.alarmSourceId = capture->alarmSourceId;
+            captureSnapshot.tempValues = capture->tempValues;
+            captureSnapshot.dataManager = capture->dataManager;
+            captureSnapshot.lastBatch = capture->lastBatch;
+            if (!captureSnapshot.hasAlarmPoint && captureSnapshot.hasAlarmFrame && captureSnapshot.hasAlarmRect) {
+                bool pointOk = false;
+                captureSnapshot.alarmPoint = maxTemperaturePointInRect(captureSnapshot.alarmFrame,
+                                                                       captureSnapshot.alarmRect,
+                                                                       &pointOk);
+                captureSnapshot.hasAlarmPoint = pointOk;
+            }
+
+            QVector<DiagnosticTaskSnapshot> taskSnapshots;
+            taskSnapshots.reserve(runtimeTasks.size());
+            for (const auto &task : runtimeTasks) {
+                DiagnosticTaskSnapshot snapshot;
+                snapshot.taskId = task.taskId;
+                snapshot.componentId = task.task.componentRef.trimmed().isEmpty()
+                    ? task.signalPrefix
+                    : task.task.componentRef.trimmed();
+                snapshot.pluginId = task.task.pluginId.isEmpty()
+                    ? QStringLiteral("tps.multi.signal")
+                    : task.task.pluginId;
+                snapshot.settings = task.settings;
+                snapshot.bindings = task.plan.bindings;
+                taskSnapshots.push_back(snapshot);
+            }
+
+            const DiagnosticDispatcher dispatcher = m_diagnosticDispatcher;
+            QPointer<FaultDiagnostic> guard(this);
+            QtConcurrent::run([guard, runId, captureSnapshot, taskSnapshots, dispatcher]() {
+                QVector<DiagnosticWorkResult> results;
+                results.reserve(taskSnapshots.size());
+
+                QVector<double> x5322;
+                QVector<double> y5322;
+                QVector<double> x5323;
+                QVector<double> y5323;
+                QVector<double> x8902;
+                QVector<double> y8902;
+                buildCaptureCurves(captureSnapshot, &x5322, &y5322, &x5323, &y5323, &x8902, &y8902);
+                const QString tempHtml = buildTemperatureHtmlClean(captureSnapshot);
+
+                for (const auto &task : taskSnapshots) {
+                    Logger::log(QStringLiteral("FaultDiag diagnose begin: runId=%1 taskId=%2 component=%3")
+                                    .arg(runId)
+                                    .arg(task.taskId)
+                                    .arg(task.componentId),
+                                Logger::Level::Info);
+
+                    DiagnosticInput diagInput;
+                    diagInput.componentRef = task.componentId;
+                    diagInput.componentType = task.pluginId;
+                    diagInput.parameters = task.settings;
+                    if (!std::isnan(captureSnapshot.alarmMaxTempC)) {
+                        diagInput.parameters.insert(QStringLiteral("temperatureMaxC"), captureSnapshot.alarmMaxTempC);
+                        diagInput.parameters.insert(QStringLiteral("roiMaxTempC"), captureSnapshot.alarmMaxTempC);
+                        diagInput.parameters.insert(QStringLiteral("tMaxC"), captureSnapshot.alarmMaxTempC);
+                    }
+                    diagInput.parameters.insert(QStringLiteral("temperatureAlarmTriggered"), captureSnapshot.alarmTriggered);
+                    if (!std::isnan(captureSnapshot.alarmThresholdC)) {
+                        diagInput.parameters.insert(QStringLiteral("temperatureAlarmThresholdC"), captureSnapshot.alarmThresholdC);
+                    }
+                    if (!captureSnapshot.alarmSourceId.isEmpty()) {
+                        diagInput.parameters.insert(QStringLiteral("temperatureAlarmSourceId"), captureSnapshot.alarmSourceId);
+                    }
+                    diagInput.timestamp = QDateTime::currentDateTime();
+                    const auto stitchedSeries = captureSnapshot.dataManager.buildSignalSeries(task.bindings);
+                    if (!stitchedSeries.isEmpty()) {
+                        diagInput.signalSeries = stitchedSeries;
+                    } else if (captureSnapshot.hasBatch) {
+                        diagInput.signalSeries = DiagnosticDataMapper::mapSignals(captureSnapshot.lastBatch, task.bindings);
+                    }
+
+                    DiagnosticWorkResult result;
+                    result.taskId = task.taskId;
+                    result.runId = runId;
+                    result.componentId = task.componentId;
+                    result.signalSeries = diagInput.signalSeries;
+                    result.view = buildBaseView(captureSnapshot);
+                    result.view.id = task.componentId;
+                    result.view.name = task.componentId;
+                    result.view.taskId = task.taskId;
+                    result.view.x5322 = x5322;
+                    result.view.y5322 = y5322;
+                    result.view.x5323 = x5323;
+                    result.view.y5323 = y5323;
+                    result.view.x8902 = x8902;
+                    result.view.y8902 = y8902;
+
+                    result.report = dispatcher.diagnose(diagInput, &result.diagError);
+                    const double daqDurationSec = signalSeriesDurationSec(diagInput.signalSeries);
+                    const double measured = result.report.metrics.value(QStringLiteral("voltageIn1.avg"), 0.0).toDouble();
+                    const QString detail = result.report.detailHtml.isEmpty() ? QString() : result.report.detailHtml;
+                    result.view.reportHtml = QStringLiteral(
+                        "<h3>诊断结果</h3>"
+                        "<p>Task ID：%4</p>"
+                        "<p>Run ID：%5</p>"
+                        "<p>状态：%1</p>%2%3")
+                        .arg(result.report.success ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+                        .arg(detail)
+                        .arg(tempHtml)
+                        .arg(task.taskId)
+                        .arg(runId);
+                    result.view.reportHtml = QStringLiteral(
+                        "<h3>诊断结果</h3>"
+                        "<p>Task ID：%1</p>"
+                        "<p>Run ID：%2</p>"
+                        "<p>状态：%3</p>%4%5")
+                        .arg(task.taskId)
+                        .arg(runId)
+                        .arg(result.report.success ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+                        .arg(detail)
+                        .arg(tempHtml);
+                    result.view.x = captureSnapshot.tempValues.isEmpty()
+                        ? QVector<double>{0.0}
+                        : buildUniformTimelineForDuration(captureSnapshot.tempValues.size(), daqDurationSec);
+                    result.view.y = captureSnapshot.tempValues.isEmpty()
+                        ? QVector<double>{measured}
+                        : captureSnapshot.tempValues;
+                    fillSignalCurves(diagInput.signalSeries, &result.view);
+                    results.push_back(result);
+                }
+
+                if (!guard) {
+                    return;
+                }
+                QMetaObject::invokeMethod(guard.data(), [guard, runId, results]() {
+                    if (!guard) {
+                        return;
+                    }
+                    for (const auto &result : results) {
+                        if (!result.diagError.isEmpty()) {
+                            Logger::log(QStringLiteral("FaultDiag diagnose warning: taskId=%1 error=%2")
+                                            .arg(result.taskId)
+                                            .arg(result.diagError),
+                                        Logger::Level::Warn);
+                        }
+                        if (guard->m_taskContextManager) {
+                            guard->m_taskContextManager->setRawDataSummary(result.taskId, result.signalSeries);
+                            guard->m_taskContextManager->setDiagnosticResult(result.taskId,
+                                                                             result.report,
+                                                                             result.view.reportHtml);
+                            guard->m_taskContextManager->closeTask(result.taskId,
+                                                                   result.report.success
+                                                                       ? QStringLiteral("Completed")
+                                                                       : QStringLiteral("CompletedWithFailure"));
+                        }
+                        Logger::log(QStringLiteral("FaultDiag diagnose complete: runId=%1 taskId=%2 status=%3 signalSeries=%4")
+                                        .arg(runId)
+                                        .arg(result.taskId)
+                                        .arg(result.report.success ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+                                        .arg(result.signalSeries.size()),
+                                    Logger::Level::Info);
+                        guard->updateComponent(result.view);
+                    }
+                    Logger::log(QStringLiteral("FaultDiag batch completed: runId=%1")
+                                    .arg(runId),
+                                Logger::Level::Info);
+                }, Qt::QueuedConnection);
+            });
+            return;
+
             auto buildSeriesFromPacket = [capture](const JYDataPacket &packet, QVector<double> &times, QVector<double> &values) {
                 if (packet.channelCount <= 0) {
                     return;
@@ -2115,6 +2566,118 @@ void FaultDiagnostic::runTest(const QString &componentRef,
                 m_runtime->rts()->completeRun(2000, &stopError);
             }
 
+            CaptureFinalizeSnapshot captureSnapshot;
+            captureSnapshot.frame = capture->frame;
+            captureSnapshot.alarmFrame = capture->alarmFrame;
+            captureSnapshot.point = capture->point;
+            if (capture->hasBox) {
+                captureSnapshot.boxes.insert(QStringLiteral("B1"), capture->box);
+            }
+            captureSnapshot.hasFrame = capture->hasFrame;
+            captureSnapshot.hasAlarmFrame = capture->hasAlarmFrame;
+            captureSnapshot.hasPoint = capture->hasPoint;
+            captureSnapshot.hasBatch = capture->hasBatch;
+            captureSnapshot.alarmTriggered = capture->alarmTriggered;
+            captureSnapshot.hasAlarmRect = capture->hasAlarmRect;
+            captureSnapshot.hasAlarmPoint = capture->hasAlarmPoint;
+            captureSnapshot.alarmPoint = capture->alarmPoint;
+            captureSnapshot.alarmRect = capture->alarmRect;
+            captureSnapshot.alarmThresholdC = capture->alarmThresholdC;
+            captureSnapshot.alarmMaxTempC = capture->alarmMaxTempC;
+            captureSnapshot.tempValues = capture->tempValues;
+            captureSnapshot.lastBatch = capture->lastBatch;
+            if (!captureSnapshot.hasAlarmPoint && captureSnapshot.hasAlarmFrame && captureSnapshot.hasAlarmRect) {
+                bool pointOk = false;
+                captureSnapshot.alarmPoint = maxTemperaturePointInRect(captureSnapshot.alarmFrame,
+                                                                       captureSnapshot.alarmRect,
+                                                                       &pointOk);
+                captureSnapshot.hasAlarmPoint = pointOk;
+            }
+
+            DiagnosticTaskSnapshot taskSnapshot;
+            taskSnapshot.componentId = item.componentRef;
+            taskSnapshot.pluginId = pluginId;
+            taskSnapshot.settings = settings;
+            taskSnapshot.bindings = bindings;
+
+            const DiagnosticDispatcher dispatcher = m_diagnosticDispatcher;
+            QPointer<FaultDiagnostic> guard(this);
+            QtConcurrent::run([guard, taskSnapshot, captureSnapshot, dispatcher]() {
+                QVector<double> x5322;
+                QVector<double> y5322;
+                QVector<double> x5323;
+                QVector<double> y5323;
+                QVector<double> x8902;
+                QVector<double> y8902;
+                buildCaptureCurves(captureSnapshot, &x5322, &y5322, &x5323, &y5323, &x8902, &y8902);
+                const QString tempHtml = buildTemperatureHtmlClean(captureSnapshot);
+
+                DiagnosticInput diagInput;
+                diagInput.componentRef = taskSnapshot.componentId;
+                diagInput.componentType = taskSnapshot.pluginId;
+                diagInput.parameters = taskSnapshot.settings;
+                if (!std::isnan(captureSnapshot.alarmMaxTempC)) {
+                    diagInput.parameters.insert(QStringLiteral("temperatureMaxC"), captureSnapshot.alarmMaxTempC);
+                    diagInput.parameters.insert(QStringLiteral("roiMaxTempC"), captureSnapshot.alarmMaxTempC);
+                    diagInput.parameters.insert(QStringLiteral("tMaxC"), captureSnapshot.alarmMaxTempC);
+                }
+                diagInput.parameters.insert(QStringLiteral("temperatureAlarmTriggered"), captureSnapshot.alarmTriggered);
+                if (!std::isnan(captureSnapshot.alarmThresholdC)) {
+                    diagInput.parameters.insert(QStringLiteral("temperatureAlarmThresholdC"), captureSnapshot.alarmThresholdC);
+                }
+                diagInput.timestamp = QDateTime::currentDateTime();
+                if (captureSnapshot.hasBatch) {
+                    diagInput.signalSeries = DiagnosticDataMapper::mapSignals(captureSnapshot.lastBatch, taskSnapshot.bindings);
+                }
+
+                DiagnosticWorkResult result;
+                result.componentId = taskSnapshot.componentId;
+                result.signalSeries = diagInput.signalSeries;
+                result.view = buildBaseView(captureSnapshot);
+                result.view.id = taskSnapshot.componentId;
+                result.view.name = taskSnapshot.componentId;
+                result.view.x5322 = x5322;
+                result.view.y5322 = y5322;
+                result.view.x5323 = x5323;
+                result.view.y5323 = y5323;
+                result.view.x8902 = x8902;
+                result.view.y8902 = y8902;
+                result.report = dispatcher.diagnose(diagInput, &result.diagError);
+                const double daqDurationSec = signalSeriesDurationSec(diagInput.signalSeries);
+                const double measured = result.report.metrics.value(QStringLiteral("voltageIn1.avg"), 0.0).toDouble();
+                const QString detail = result.report.detailHtml.isEmpty() ? QString() : result.report.detailHtml;
+                result.view.reportHtml = QStringLiteral(
+                    "<h3>诊断结果</h3>"
+                    "<p>状态：%1</p>%2%3")
+                    .arg(result.report.success ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+                    .arg(detail)
+                    .arg(tempHtml);
+                result.view.reportHtml = QStringLiteral(
+                    "<h3>诊断结果</h3>"
+                    "<p>状态：%1</p>%2%3")
+                    .arg(result.report.success ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+                    .arg(detail)
+                    .arg(tempHtml);
+                result.view.x = captureSnapshot.tempValues.isEmpty()
+                    ? QVector<double>{0.0}
+                    : buildUniformTimelineForDuration(captureSnapshot.tempValues.size(), daqDurationSec);
+                result.view.y = captureSnapshot.tempValues.isEmpty()
+                    ? QVector<double>{measured}
+                    : captureSnapshot.tempValues;
+                fillSignalCurves(diagInput.signalSeries, &result.view);
+
+                if (!guard) {
+                    return;
+                }
+                QMetaObject::invokeMethod(guard.data(), [guard, result]() {
+                    if (!guard) {
+                        return;
+                    }
+                    guard->updateComponent(result.view);
+                }, Qt::QueuedConnection);
+            });
+            return;
+
             ComponentViewData view;
             view.id = item.componentRef;
             view.name = item.componentRef;
@@ -2257,6 +2820,13 @@ void FaultDiagnostic::buildWidgets()
         m_plot->setTimeAxisEnabled(false);
         m_plot->setAutoRangeEnabled(true);
         ui->plotContainer->layout()->addWidget(m_plot);
+        connect(m_plot->xAxis, qOverload<const QCPRange &>(&QCPAxis::rangeChanged), this,
+                [this](const QCPRange &) {
+                    if (m_plotViewportSyncing) {
+                        return;
+                    }
+                    renderCurrentPlot(true);
+                });
     }
 
     if (ui->reportContainer) {
@@ -2311,7 +2881,7 @@ void FaultDiagnostic::setCurrentIndex(int index)
     }
     const auto &item = m_components[index];
     if (m_plot) {
-        m_plot->removeStaticLine(QStringLiteral("娓╁害"));
+        m_plot->removeStaticLine(QStringLiteral("温度"));
         m_plot->removeStaticLine(QStringLiteral("5322"));
         m_plot->removeStaticLine(QStringLiteral("5323"));
         m_plot->removeStaticLine(QStringLiteral("8902"));
@@ -2323,7 +2893,7 @@ void FaultDiagnostic::setCurrentIndex(int index)
         m_signalGraphs.clear();
     }
     refreshThermal(item);
-    refreshPlot(item);
+    renderCurrentPlot(false);
     refreshReport(item);
 }
 
@@ -2350,6 +2920,10 @@ void FaultDiagnostic::refreshPlot(const ComponentViewData &item)
     if (!m_plot) {
         return;
     }
+    const bool preserveView = m_plot->isUserOverrideActive();
+    const double xLower = preserveView ? m_plot->visibleLowerBound() : 0.0;
+    const double xUpper = preserveView ? m_plot->visibleUpperBound() : 0.0;
+    const int pixelWidth = qMax(200, m_plot->plotAreaWidth());
     auto downsample = [](const QVector<double> &xs, const QVector<double> &ys, int maxPoints) {
         if (xs.size() <= maxPoints || ys.size() <= maxPoints || xs.size() != ys.size()) {
             return qMakePair(xs, ys);
@@ -2366,11 +2940,17 @@ void FaultDiagnostic::refreshPlot(const ComponentViewData &item)
         return qMakePair(dx, dy);
     };
 
-    const auto temp = downsample(item.x, item.y, 4000);
+    auto reduce = [&](const QVector<double> &xs, const QVector<double> &ys) {
+        return preserveView
+            ? reduceCurveForViewport(xs, ys, xLower, xUpper, pixelWidth)
+            : downsample(xs, ys, 4000);
+    };
+
+    const auto temp = reduce(item.x, item.y);
     if (!m_tempGraph) {
-        m_tempGraph = m_plot->addStaticLine(QStringLiteral("娓╁害"), temp.first, temp.second, QColor(52, 152, 219));
+        m_tempGraph = m_plot->addStaticLine(QStringLiteral("温度"), temp.first, temp.second, QColor(52, 152, 219));
     } else {
-        m_plot->updateStaticLine(m_tempGraph, temp.first, temp.second);
+        m_plot->updateStaticLine(m_tempGraph, temp.first, temp.second, !preserveView);
     }
 
     QStringList desiredSignalKeys;
@@ -2411,20 +2991,20 @@ void FaultDiagnostic::refreshPlot(const ComponentViewData &item)
 
         for (int index = 0; index < desiredSignalKeys.size(); ++index) {
             const QString &key = desiredSignalKeys.at(index);
-            const auto curve = downsample(item.signalXById.value(key), item.signalYById.value(key), 4000);
+            const auto curve = reduce(item.signalXById.value(key), item.signalYById.value(key));
             if (!m_signalGraphs.contains(key) || !m_signalGraphs.value(key)) {
                 const QColor color = palette.at(index % palette.size());
                 m_signalGraphs.insert(key, m_plot->addStaticLine(key, curve.first, curve.second, color));
             } else {
-                m_plot->updateStaticLine(m_signalGraphs.value(key), curve.first, curve.second);
+                m_plot->updateStaticLine(m_signalGraphs.value(key), curve.first, curve.second, !preserveView);
             }
         }
         return;
     }
 
-    const auto ch5322 = downsample(item.x5322, item.y5322, 4000);
-    const auto ch5323 = downsample(item.x5323, item.y5323, 4000);
-    const auto ch8902 = downsample(item.x8902, item.y8902, 4000);
+    const auto ch5322 = reduce(item.x5322, item.y5322);
+    const auto ch5323 = reduce(item.x5323, item.y5323);
+    const auto ch8902 = reduce(item.x8902, item.y8902);
 
     const QStringList existingKeys = m_signalGraphs.keys();
     for (const QString &key : existingKeys) {
@@ -2436,22 +3016,43 @@ void FaultDiagnostic::refreshPlot(const ComponentViewData &item)
         m_signalGraphs.insert(QStringLiteral("5322"),
                               m_plot->addStaticLine(QStringLiteral("5322"), ch5322.first, ch5322.second, QColor(46, 204, 113)));
     } else {
-        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("5322")), ch5322.first, ch5322.second);
+        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("5322")), ch5322.first, ch5322.second, !preserveView);
     }
 
     if (!m_signalGraphs.contains(QStringLiteral("5323")) || !m_signalGraphs.value(QStringLiteral("5323"))) {
         m_signalGraphs.insert(QStringLiteral("5323"),
                               m_plot->addStaticLine(QStringLiteral("5323"), ch5323.first, ch5323.second, QColor(241, 196, 15)));
     } else {
-        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("5323")), ch5323.first, ch5323.second);
+        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("5323")), ch5323.first, ch5323.second, !preserveView);
     }
 
     if (!m_signalGraphs.contains(QStringLiteral("8902")) || !m_signalGraphs.value(QStringLiteral("8902"))) {
         m_signalGraphs.insert(QStringLiteral("8902"),
                               m_plot->addStaticLine(QStringLiteral("8902"), ch8902.first, ch8902.second, QColor(155, 89, 182)));
     } else {
-        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("8902")), ch8902.first, ch8902.second);
+        m_plot->updateStaticLine(m_signalGraphs.value(QStringLiteral("8902")), ch8902.first, ch8902.second, !preserveView);
     }
+}
+
+void FaultDiagnostic::renderCurrentPlot(bool preserveView)
+{
+    if (!m_plot || !m_list) {
+        return;
+    }
+
+    const int index = m_list->currentRow();
+    if (index < 0 || index >= m_components.size()) {
+        return;
+    }
+
+    if (!preserveView) {
+        m_plot->resetAutoView();
+    }
+
+    const bool previousSyncing = m_plotViewportSyncing;
+    m_plotViewportSyncing = true;
+    refreshPlot(m_components.at(index));
+    m_plotViewportSyncing = previousSyncing;
 }
 
 void FaultDiagnostic::refreshReport(const ComponentViewData &item)
