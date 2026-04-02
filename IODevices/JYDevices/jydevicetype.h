@@ -25,15 +25,15 @@ enum class JYDeviceState {
 };
 
 struct JY532xConfig {
-    // PXIe-5322/PXIe-5323 slot number in the chassis.
+    // PXIe-5322/PXIe-5323 在机箱中的槽位号.
     int slotNumber = 0;
-    // Enabled channel count for the device.
+    // 使能的通道数.
     int channelCount = 16;
-    // Device sample rate in Hz.
+    // 采样率（Hz）.
     double sampleRate = 1000000.0;
-    // Number of samples per channel returned by each read.
+    // 每次读取的样本数.
     int samplesPerRead = 1024;
-    // Blocking timeout used by the vendor SDK read call.
+    // 超时时间（ms）.
     int timeoutMs = 1000;
     double lowRange = -10.0;
     double highRange = 10.0;
