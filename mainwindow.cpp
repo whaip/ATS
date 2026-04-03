@@ -17,10 +17,14 @@
 #include <QDebug>
 #include "FaultDiagnostic/UI/faultdiagnostic.h"
 #include "FaultDiagnostic/UI/configurationwindow.h"
+#include "FaultDiagnostic/TaskLogging/tasklogstatisticspage.h"
 #include "FaultDiagnostic/Core/testsequencemanager.h"
 #include "BoardManager/boardmanager.h"
 #include <QHeaderView>
 #include <QDir>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDesktopServices>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -29,16 +33,26 @@
 #include <QJsonParseError>
 #include <QKeySequence>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QStackedWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTextBrowser>
 #include <QToolBar>
 #include <QToolButton>
+#include <QUrl>
+#include <QVBoxLayout>
 #include <QWidget>
 #include <algorithm>
 
 namespace {
+struct DeviceManualInfo {
+    QString title;
+    QString manualPath;
+    QString summaryPath;
+};
+
 QString initSummaryText(bool anyFault, bool allInited, bool anyInited)
 {
     if (anyFault) {
@@ -108,6 +122,104 @@ QString resolveTaskParamDbPath()
         }
     }
     return QDir::cleanPath(candidates.first());
+}
+
+QString resolveExistingPath(const QString &relativePath)
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    QStringList candidates;
+    candidates << QDir(appDir).filePath(relativePath);
+
+    QDir probe(appDir);
+    for (int depth = 0; depth < 8; ++depth) {
+        candidates << probe.filePath(relativePath);
+        if (!probe.cdUp()) {
+            break;
+        }
+    }
+
+    for (const QString &path : candidates) {
+        if (QFileInfo::exists(path)) {
+            return QDir::cleanPath(path);
+        }
+    }
+
+    return QDir::cleanPath(candidates.first());
+}
+
+DeviceManualInfo deviceManualInfo(const QString &deviceKey)
+{
+    if (deviceKey == QStringLiteral("JY5711")) {
+        DeviceManualInfo info;
+        info.title = QStringLiteral("JY5711 设备详情");
+        info.manualPath = QStringLiteral("D:/FaultDetect/Program/FaultDetect/JY-5710_User Manual_EN.pdf");
+        info.summaryPath = QStringLiteral("Docs/DeviceManualSummaries/jy5711.md");
+        return info;
+    }
+
+    if (deviceKey == QStringLiteral("JY5322")) {
+        DeviceManualInfo info;
+        info.title = QStringLiteral("JY5322 设备详情");
+        info.manualPath = QStringLiteral("D:/FaultDetect/Program/FaultDetect/JY-5320_Spec and Manual_EN.pdf");
+        info.summaryPath = QStringLiteral("Docs/DeviceManualSummaries/jy5322.md");
+        return info;
+    }
+
+    if (deviceKey == QStringLiteral("JY5323")) {
+        DeviceManualInfo info;
+        info.title = QStringLiteral("JY5323 设备详情");
+        info.manualPath = QStringLiteral("D:/FaultDetect/Program/FaultDetect/JY-5320_Spec and Manual_EN.pdf");
+        info.summaryPath = QStringLiteral("Docs/DeviceManualSummaries/jy5323.md");
+        return info;
+    }
+
+    DeviceManualInfo info;
+    info.title = QStringLiteral("JY8902 设备详情");
+    info.manualPath = QStringLiteral("D:/FaultDetect/Program/FaultDetect/JY-8902 Specs and Manual_EN.pdf");
+    info.summaryPath = QStringLiteral("Docs/DeviceManualSummaries/jy8902.md");
+    return info;
+}
+
+void showDeviceManualDialog(QWidget *parent, const DeviceManualInfo &info)
+{
+    QDialog dialog(parent);
+    dialog.setWindowTitle(info.title);
+    dialog.resize(860, 640);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(12, 12, 12, 12);
+    layout->setSpacing(8);
+
+    QString markdown;
+    const QString summaryPath = resolveExistingPath(info.summaryPath);
+    QFile summaryFile(summaryPath);
+    if (summaryFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        markdown = QString::fromUtf8(summaryFile.readAll());
+    } else {
+        markdown = QStringLiteral("# 摘要文件未找到\n\n路径：`%1`").arg(QDir::toNativeSeparators(summaryPath));
+    }
+
+    auto *browser = new QTextBrowser(&dialog);
+    browser->setOpenExternalLinks(false);
+    browser->setMarkdown(QStringLiteral("**手册文件：** `%1`\n\n%2")
+                             .arg(QDir::toNativeSeparators(info.manualPath),
+                                  markdown));
+    layout->addWidget(browser, 1);
+
+    auto *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    auto *openButton = new QPushButton(QStringLiteral("打开手册"), &dialog);
+    buttonBox->addButton(openButton, QDialogButtonBox::ActionRole);
+    QObject::connect(openButton, &QPushButton::clicked, &dialog, [parent, info]() {
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(info.manualPath))) {
+            QMessageBox::warning(parent,
+                                 QStringLiteral("打开失败"),
+                                 QStringLiteral("无法打开手册：%1").arg(QDir::toNativeSeparators(info.manualPath)));
+        }
+    });
+    QObject::connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttonBox);
+
+    dialog.exec();
 }
 
 QString normalizeComponentTypeKey(const QString &value)
@@ -344,14 +456,20 @@ MainWindow::MainWindow(QWidget *parent)
     auto build5711Config = []() {
         JYDeviceConfig config;
         config.kind = JYDeviceKind::PXIe5711;
-        config.cfg5711.channelCount = 1;
+        config.cfg5711.slotNumber = 0;
+        config.cfg5711.channelCount = 32;
         config.cfg5711.sampleRate = 1000000.0;
         config.cfg5711.lowRange = -10.0;
         config.cfg5711.highRange = 10.0;
-        config.cfg5711.waveforms.push_back(
-            build5711WaveformConfig(0,
-                                    QStringLiteral("HighLevelWave"),
-                                    PXIe5711_make_params({{"amplitude", 0.0}})));
+        config.cfg5711.enabledChannels.clear();
+        config.cfg5711.waveforms.clear();
+        for (int channel = 0; channel < config.cfg5711.channelCount; ++channel) {
+            config.cfg5711.enabledChannels.push_back(channel);
+            config.cfg5711.waveforms.push_back(
+                build5711WaveformConfig(channel,
+                                        QStringLiteral("HighLevelWave"),
+                                        PXIe5711_make_params({{"amplitude", 0.0}})));
+        }
         return config;
     };
 
@@ -570,6 +688,7 @@ MainWindow::MainWindow(QWidget *parent)
                             }
 
                             if (m_faultDiagnosticPage) {
+                                m_faultDiagnosticPage->setCurrentBoardId(QString());
                                 if (!tasks.isEmpty()) {
                                     m_faultDiagnosticPage->startBatchTest(tasks);
                                 } else {
@@ -815,6 +934,7 @@ MainWindow::MainWindow(QWidget *parent)
                             m_faultDiagnosticPage->setComponents(components);
                             m_faultDiagnosticPage->setGuidanceLabels(allLabels.isEmpty() ? selectedLabels : allLabels);
                             m_faultDiagnosticPage->setGuidanceImage(boardImage);
+                            m_faultDiagnosticPage->setCurrentBoardId(boardId);
                             m_faultDiagnosticPage->selectComponentById(components.first().id);
 
                             if (m_faultDiagnosticPageIndex >= 0 && m_faultDiagnosticPageIndex < ui->pagesStack->count()) {
@@ -826,6 +946,24 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (m_boardManagerPageIndex >= 0 && m_boardManagerPageIndex < ui->pagesStack->count()) {
                 ui->pagesStack->setCurrentIndex(m_boardManagerPageIndex);
+            }
+        });
+    }
+
+    if (ui->tabStatistics) {
+        connect(ui->tabStatistics, &QToolButton::clicked, this, [this]() {
+            if (!ui || !ui->pagesStack) {
+                return;
+            }
+            if (!m_taskLogStatisticsPage) {
+                m_taskLogStatisticsPage = new TaskLogStatisticsPage();
+                m_taskLogStatisticsPageIndex = addPage(m_taskLogStatisticsPage, QStringLiteral("测试日志统计"), false);
+            }
+            if (m_taskLogStatisticsPage) {
+                m_taskLogStatisticsPage->refresh();
+            }
+            if (m_taskLogStatisticsPageIndex >= 0 && m_taskLogStatisticsPageIndex < ui->pagesStack->count()) {
+                ui->pagesStack->setCurrentIndex(m_taskLogStatisticsPageIndex);
             }
         });
     }
@@ -844,6 +982,9 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe5711, nullptr)) {
                 worker->postConfigure(build5711Config());
+                worker->postStart();
+                worker->postTrigger();
+                worker->postStop();
             }
         });
     }
@@ -862,6 +1003,9 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe5322, nullptr)) {
                 worker->postConfigure(build532xConfig(JYDeviceKind::PXIe5322, 16));
+                worker->postStart();
+                worker->postTrigger();
+                worker->postStop();
             }
         });
     }
@@ -880,6 +1024,9 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe5323, nullptr)) {
                 worker->postConfigure(build532xConfig(JYDeviceKind::PXIe5323, 32));
+                worker->postStart();
+                worker->postTrigger();
+                worker->postStop();
             }
         });
     }
@@ -898,6 +1045,9 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (auto *worker = m_jyWorkers.value(JYDeviceKind::PXIe8902, nullptr)) {
                 worker->postConfigure(build8902Config());
+                worker->postStart();
+                worker->postTrigger();
+                worker->postStop();
             }
         });
     }
@@ -948,12 +1098,68 @@ MainWindow::MainWindow(QWidget *parent)
         });
     }
 
+    if (ui->btnInitAllDevices) {
+        connect(ui->btnInitAllDevices, &QPushButton::clicked, this, [this]() {
+            if (!ui) {
+                return;
+            }
+            if (ui->btnInitJY5711) {
+                ui->btnInitJY5711->click();
+            }
+            if (ui->btnInitJY5322) {
+                ui->btnInitJY5322->click();
+            }
+            if (ui->btnInitJY5323) {
+                ui->btnInitJY5323->click();
+            }
+            if (ui->btnInitJY8902) {
+                ui->btnInitJY8902->click();
+            }
+            if (ui->btnInitInfrared) {
+                ui->btnInitInfrared->click();
+            }
+        });
+    }
+
+    if (ui->btnJY5711Detail) {
+        connect(ui->btnJY5711Detail, &QToolButton::clicked, this, [this]() {
+            showDeviceManualDialog(this, deviceManualInfo(QStringLiteral("JY5711")));
+        });
+    }
+
+    if (ui->btnJY5322Detail) {
+        connect(ui->btnJY5322Detail, &QToolButton::clicked, this, [this]() {
+            showDeviceManualDialog(this, deviceManualInfo(QStringLiteral("JY5322")));
+        });
+    }
+
+    if (ui->btnJY5323Detail) {
+        connect(ui->btnJY5323Detail, &QToolButton::clicked, this, [this]() {
+            showDeviceManualDialog(this, deviceManualInfo(QStringLiteral("JY5323")));
+        });
+    }
+
+    if (ui->btnJY8902Detail) {
+        connect(ui->btnJY8902Detail, &QToolButton::clicked, this, [this]() {
+            showDeviceManualDialog(this, deviceManualInfo(QStringLiteral("JY8902")));
+        });
+    }
+
     if (ui->actionl) {
         ui->actionl->setShortcut(QKeySequence(QStringLiteral("Ctrl+1")));
         connect(ui->actionl, &QAction::triggered, this, [this]() {
             if (ui && ui->navSetting) {
                 ui->navSetting->click();
             }
+        });
+    }
+
+    if (ui->actionshouye) {
+        connect(ui->actionshouye, &QAction::triggered, this, [this]() {
+            if (!ui || !ui->pagesStack) {
+                return;
+            }
+            ui->pagesStack->setCurrentIndex(0);
         });
     }
 

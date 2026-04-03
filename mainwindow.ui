@@ -161,7 +161,7 @@
                <widget class="QStackedWidget" name="pagesStack">
                 <widget class="QWidget" name="page1">
                  <property name="windowTitle">
-                  <string>page1</string>
+                  <string>首页</string>
                  </property>
                  <property name="styleSheet">
                   <string notr="true"/>
@@ -202,6 +202,13 @@
                      <property name="bottomMargin">
                       <number>10</number>
                      </property>
+                     <item>
+                      <widget class="QPushButton" name="btnInitAllDevices">
+                       <property name="text">
+                        <string>一键初始化</string>
+                       </property>
+                      </widget>
+                     </item>
                      <item>
                       <widget class="QLabel" name="labelOverviewTitle">
                        <property name="text">
@@ -1036,6 +1043,7 @@
     <property name="title">
      <string>页面</string>
     </property>
+    <addaction name="actionshouye"/>
     <addaction name="actionl"/>
     <addaction name="actiong"/>
     <addaction name="actionsss"/>
@@ -1160,6 +1168,11 @@
   <action name="actionInitInfrared">
    <property name="text">
     <string>初始化 IR Camera</string>
+   </property>
+  </action>
+  <action name="actionshouye">
+   <property name="text">
+    <string>首页</string>
    </property>
   </action>
  </widget>

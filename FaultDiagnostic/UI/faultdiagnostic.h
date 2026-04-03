@@ -14,6 +14,7 @@
 #include "../TPS/Manager/tpspluginmanager.h"
 
 class JYThreadManager;
+class TestTaskLogService;
 
 class IRCamera;
 class QTextBrowser;
@@ -70,6 +71,7 @@ public:
     void selectComponentById(const QString &id);
     void setGuidanceLabels(const QList<CompLabel> &labels);
     void setGuidanceImage(const QImage &image);
+    void setCurrentBoardId(const QString &boardId);
     void startBatchTest(const QVector<TestTask> &tasks);
 
 public slots:
@@ -97,6 +99,7 @@ private:
     void refreshPlot(const ComponentViewData &item);
     void renderCurrentPlot(bool preserveView);
     void refreshReport(const ComponentViewData &item);
+    void appendTaskLog(const QString &taskId);
 
     Ui::FaultDiagnostic *ui;
     QListWidget *m_list = nullptr;
@@ -120,9 +123,11 @@ private:
     DiagnosticPluginManager *m_diagPluginManager = nullptr;
     DiagnosticDispatcher m_diagnosticDispatcher;
     TestTaskContextManager *m_taskContextManager = nullptr;
+    TestTaskLogService *m_taskLogService = nullptr;
     bool m_devicesCreated = false;
     bool m_ownsThreadManager = false;
     bool m_plotViewportSyncing = false;
+    QString m_currentBoardId;
 };
 
 #endif // FAULTDIAGNOSTIC_H

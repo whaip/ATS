@@ -6,6 +6,7 @@
 #include "../TPS/Core/tpsruntimecontext.h"
 #include "../TPS/Manager/tpsbuiltinregistry.h"
 #include "../Diagnostics/diagnosticbuiltinregistry.h"
+#include "../TaskLogging/testtasklogservice.h"
 
 #include "../../ComponentsDetect/componenttypes.h"
 #include "../../IRCamera/ircamera.h"
@@ -717,6 +718,7 @@ FaultDiagnostic::FaultDiagnostic(QWidget *parent)
     m_diagPluginManager->loadAll(nullptr);
     m_diagnosticDispatcher.setPluginManager(m_diagPluginManager);
     m_taskContextManager = new TestTaskContextManager(this);
+    m_taskLogService = new TestTaskLogService(this);
 
     if (m_list) {
         connect(m_list, &QListWidget::currentRowChanged, this, &FaultDiagnostic::onComponentSelectionChanged);
@@ -851,6 +853,11 @@ void FaultDiagnostic::setGuidanceImage(const QImage &image)
     m_guidanceImage = image;
 }
 
+void FaultDiagnostic::setCurrentBoardId(const QString &boardId)
+{
+    m_currentBoardId = boardId.trimmed();
+}
+
 void FaultDiagnostic::updateComponent(const ComponentViewData &item)
 {
     if (!m_list) {
@@ -967,7 +974,7 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
     QVector<TaskRuntime> runtimeTasks;
     runtimeTasks.reserve(tasks.size());
     const QString runId = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz");
-    const QString boardId = QStringLiteral("board");
+    const QString boardId = m_currentBoardId.isEmpty() ? QStringLiteral("board") : m_currentBoardId;
     const QString paramSnapshotDbPath = resolveParamSnapshotDbPath();
     Logger::log(QStringLiteral("FaultDiag batch start: runId=%1 taskCount=%2")
                     .arg(runId)
@@ -985,6 +992,7 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
         for (const auto &prepared : runtimeTasks) {
             if (!prepared.taskId.isEmpty()) {
                 m_taskContextManager->closeTask(prepared.taskId, status, reason);
+                appendTaskLog(prepared.taskId);
             }
         }
     };
@@ -1089,6 +1097,7 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
             QMessageBox::warning(this, tr("测试"), tr("端口分配失败：%1").arg(portError));
             if (m_taskContextManager && !runtime.taskId.isEmpty()) {
                 m_taskContextManager->closeTask(runtime.taskId, QStringLiteral("Failed"), QStringLiteral("PortAllocationFailed"));
+                appendTaskLog(runtime.taskId);
             }
             closePreparedTasks(QStringLiteral("Failed"), QStringLiteral("PortAllocationFailed"));
             return;
@@ -1112,6 +1121,7 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
             QMessageBox::warning(this, tr("测试"), tr("设备配置生成失败：%1").arg(error));
             if (m_taskContextManager && !runtime.taskId.isEmpty()) {
                 m_taskContextManager->closeTask(runtime.taskId, QStringLiteral("Failed"), QStringLiteral("BuildDevicePlanFailed"));
+                appendTaskLog(runtime.taskId);
             }
             closePreparedTasks(QStringLiteral("Failed"), QStringLiteral("BuildDevicePlanFailed"));
             return;
@@ -1944,6 +1954,7 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
                                                                    result.report.success
                                                                        ? QStringLiteral("Completed")
                                                                        : QStringLiteral("CompletedWithFailure"));
+                            guard->appendTaskLog(result.taskId);
                         }
                         Logger::log(QStringLiteral("FaultDiag diagnose complete: runId=%1 taskId=%2 status=%3 signalSeries=%4")
                                         .arg(runId)
@@ -2111,6 +2122,7 @@ void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
                     m_taskContextManager->closeTask(task.taskId,
                                                     report.success ? QStringLiteral("Completed")
                                                                    : QStringLiteral("CompletedWithFailure"));
+                    appendTaskLog(task.taskId);
                 }
                 Logger::log(QStringLiteral("FaultDiag diagnose complete: runId=%1 taskId=%2 status=%3 signalSeries=%4")
                                 .arg(runId)
@@ -3065,4 +3077,23 @@ void FaultDiagnostic::refreshReport(const ComponentViewData &item)
         return;
     }
     m_report->setHtml(item.reportHtml);
+}
+
+void FaultDiagnostic::appendTaskLog(const QString &taskId)
+{
+    if (!m_taskContextManager || !m_taskLogService || taskId.trimmed().isEmpty()) {
+        return;
+    }
+
+    const TaskContextRecord record = m_taskContextManager->task(taskId);
+    if (record.taskId.isEmpty()) {
+        return;
+    }
+
+    QString errorMessage;
+    if (!m_taskLogService->appendTaskRecord(record, &errorMessage)) {
+        Logger::log(QStringLiteral("FaultDiag task log persist failed: taskId=%1 error=%2")
+                        .arg(taskId, errorMessage),
+                    Logger::Level::Warn);
+    }
 }

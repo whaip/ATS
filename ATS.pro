@@ -1,4 +1,4 @@
-QT       += core gui concurrent printsupport openglwidgets serialport
+QT       += core gui concurrent printsupport openglwidgets serialport sql
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -8,6 +8,11 @@ DIAGNOSTIC_PLUGIN_SOURCES = $$files(FaultDiagnostic/Diagnostics/Plugins/*.cpp, t
 DIAGNOSTIC_PLUGIN_HEADERS = $$files(FaultDiagnostic/Diagnostics/Plugins/*.h, true)
 TPS_PLUGIN_SOURCES = $$files(FaultDiagnostic/TPS/Plugins/*.cpp, true)
 TPS_PLUGIN_HEADERS = $$files(FaultDiagnostic/TPS/Plugins/*.h, true)
+
+QT_SQLITE_PLUGIN_DIR = $$[QT_INSTALL_PLUGINS]/sqldrivers
+exists(D:/QT/6.7.3/msvc2022_64/plugins/sqldrivers/qsqlite.dll) {
+    QT_SQLITE_PLUGIN_DIR = D:/QT/6.7.3/msvc2022_64/plugins/sqldrivers
+}
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -35,6 +40,8 @@ SOURCES += \
     FaultDiagnostic/Diagnostics/diagnosticbuiltinregistry.cpp \
     FaultDiagnostic/Diagnostics/diagnosticdatamapper.cpp \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.cpp \
+    FaultDiagnostic/TaskLogging/testtasklogservice.cpp \
+    FaultDiagnostic/TaskLogging/tasklogstatisticspage.cpp \
     FaultDiagnostic/Runtime/systemorchestration.cpp \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.cpp \
     FaultDiagnostic/TPS/Manager/tpsbuiltinregistry.cpp \
@@ -102,6 +109,8 @@ HEADERS += \
     FaultDiagnostic/Diagnostics/diagnosticdatamapper.h \
     FaultDiagnostic/Diagnostics/diagnosticplugininterface.h \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.h \
+    FaultDiagnostic/TaskLogging/testtasklogservice.h \
+    FaultDiagnostic/TaskLogging/tasklogstatisticspage.h \
     FaultDiagnostic/Runtime/systemorchestration.h \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.h \
     FaultDiagnostic/TPS/Manager/tpsbuiltinregistry.h \
@@ -158,6 +167,7 @@ FORMS += \
     ComponentsDetect/componentsdetect.ui \
     FaultDiagnostic/UI/configurationwindow.ui \
     FaultDiagnostic/UI/faultdiagnostic.ui \
+    FaultDiagnostic/TaskLogging/tasklogstatisticspage.ui \
     FaultDiagnostic/Workflow/PortAllocation/portallocationreviewdialog.ui \
     FaultDiagnostic/Workflow/WiringGuide/wiringguidedialog.ui \
     FaultDiagnostic/Core/deviceportmanager/deviceportmanager/deviceportmanager.ui \
@@ -192,6 +202,8 @@ win32 {
     QMAKE_POST_LINK += $$quote(copy /Y $$shell_path($$PWD/build/release/ATS.png) $$shell_path($$DESTDIR\\ATS.png) > nul$$escape_expand(\n\t))
     QMAKE_POST_LINK += $$quote(if not exist $$shell_path($$DESTDIR\\model) mkdir $$shell_path($$DESTDIR\\model)$$escape_expand(\n\t))
     QMAKE_POST_LINK += $$quote(xcopy /Y /Q $$shell_path($$PWD/ComponentsDetect/model/*) $$shell_path($$DESTDIR\\model\\) > nul$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(if not exist $$shell_path($$DESTDIR\\sqldrivers) mkdir $$shell_path($$DESTDIR\\sqldrivers)$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(copy /Y $$shell_path($$QT_SQLITE_PLUGIN_DIR\\qsqlite.dll) $$shell_path($$DESTDIR\\sqldrivers\\qsqlite.dll) > nul$$escape_expand(\n\t))
 
     LIBS += -L$$PWD/lib/windows -L$$PWD/lib/pxie5320 -L$$PWD/lib/pxie5711 -L$$PWD/lib/pxie8902
     LIBS += -L$$PWD/lib/fftw -L$$PWD/lib/opencv_release -L$$PWD/lib/onnxruntime

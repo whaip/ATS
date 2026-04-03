@@ -29,6 +29,7 @@ class BoardManager;
 class ConfigurationWindow;
 class JYThreadManager;
 class JYDeviceWorker;
+class TaskLogStatisticsPage;
 
 class MainWindow : public QMainWindow
 {
@@ -66,6 +67,8 @@ private:
     int m_configurationPageIndex = -1;
     BoardManager *m_boardManagerPage = nullptr;
     int m_boardManagerPageIndex = -1;
+    TaskLogStatisticsPage *m_taskLogStatisticsPage = nullptr;
+    int m_taskLogStatisticsPageIndex = -1;
     bool m_irStationRunning = false;
     JYThreadManager *m_jyManager = nullptr;
     QMap<JYDeviceKind, JYDeviceWorker *> m_jyWorkers;
