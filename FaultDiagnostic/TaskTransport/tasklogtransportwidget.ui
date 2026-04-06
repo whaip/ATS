@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TaskLogTransportWidget</class>
+ <widget class="QWidget" name="TaskLogTransportWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>960</width>
+    <height>640</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>统计结果发送设置</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="leftMargin">
+    <number>12</number>
+   </property>
+   <property name="topMargin">
+    <number>12</number>
+   </property>
+   <property name="rightMargin">
+    <number>12</number>
+   </property>
+   <property name="bottomMargin">
+    <number>12</number>
+   </property>
+   <property name="spacing">
+    <number>10</number>
+   </property>
+   <item>
+    <widget class="QGroupBox" name="sendGroupBox">
+     <property name="title">
+      <string>实时发送设置</string>
+     </property>
+     <layout class="QGridLayout" name="sendGridLayout">
+      <property name="horizontalSpacing">
+       <number>10</number>
+      </property>
+      <property name="verticalSpacing">
+       <number>8</number>
+      </property>
+      <item row="0" column="0" colspan="2">
+       <widget class="QCheckBox" name="sendEnabledCheckBox">
+        <property name="text">
+         <string>启用实时发送</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="5">
+       <widget class="QPushButton" name="saveButton">
+        <property name="text">
+         <string>保存设置</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="sendProtocolLabel">
+        <property name="text">
+         <string>协议</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="sendProtocolCombo"/>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="sendHostLabel">
+        <property name="text">
+         <string>发送地址</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QLineEdit" name="sendHostEdit"/>
+      </item>
+      <item row="1" column="4">
+       <widget class="QLabel" name="sendPortLabel">
+        <property name="text">
+         <string>发送端口</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="5">
+       <widget class="QSpinBox" name="sendPortSpin"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="testGroupBox">
+     <property name="title">
+      <string>可用性测试</string>
+     </property>
+     <layout class="QVBoxLayout" name="testVerticalLayout">
+      <property name="spacing">
+       <number>8</number>
+      </property>
+      <item>
+       <layout class="QGridLayout" name="testGridLayout">
+        <property name="horizontalSpacing">
+         <number>10</number>
+        </property>
+        <property name="verticalSpacing">
+         <number>8</number>
+        </property>
+        <item row="0" column="0">
+         <widget class="QLabel" name="testProtocolLabel">
+          <property name="text">
+           <string>协议</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QComboBox" name="testProtocolCombo"/>
+        </item>
+        <item row="0" column="2">
+         <widget class="QLabel" name="listenAddressLabel">
+          <property name="text">
+           <string>监听地址</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="3">
+         <widget class="QLineEdit" name="listenAddressEdit"/>
+        </item>
+        <item row="0" column="4">
+         <widget class="QLabel" name="testPortLabel">
+          <property name="text">
+           <string>监听端口</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="5">
+         <widget class="QSpinBox" name="testPortSpin"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QPushButton" name="startListenButton">
+          <property name="text">
+           <string>开始监听</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QPushButton" name="stopListenButton">
+          <property name="text">
+           <string>停止监听</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QPushButton" name="clearButton">
+          <property name="text">
+           <string>清空表格</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="3" colspan="3">
+         <widget class="QLabel" name="testStatusLabel">
+          <property name="text">
+           <string>等待连接建立后接收实时数据</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QTableWidget" name="receivedTable">
+        <property name="rowCount">
+         <number>0</number>
+        </property>
+        <property name="columnCount">
+         <number>6</number>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,16 +1,20 @@
 #include "tasklogstatisticspage.h"
 #include "ui_tasklogstatisticspage.h"
+#include "../TaskTransport/tasklogtransportwidget.h"
 
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFileInfo>
 #include <QHeaderView>
+#include <QPushButton>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QSqlTableModel>
+#include <QTableView>
 #include <QUuid>
 
 namespace {
@@ -98,6 +102,10 @@ TaskLogStatisticsPage::TaskLogStatisticsPage(QWidget *parent)
 {
     ui->setupUi(this);
     ui->statusLabel->setMinimumWidth(220);
+
+    m_transportWidget = new TaskLogTransportWidget(this);
+    ui->transportTabLayout->addWidget(m_transportWidget);
+
     ui->tableView->setAlternatingRowColors(true);
     ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tableView->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -106,6 +114,7 @@ TaskLogStatisticsPage::TaskLogStatisticsPage(QWidget *parent)
     ui->tableView->verticalHeader()->setVisible(false);
     ui->tableView->horizontalHeader()->setHighlightSections(false);
     applyTableTheme(ui->tableView);
+
     connect(ui->refreshButton, &QPushButton::clicked, this, &TaskLogStatisticsPage::refresh);
     refresh();
 }
@@ -163,6 +172,34 @@ void TaskLogStatisticsPage::refresh()
     ui->tableView->resizeColumnsToContents();
     ui->tableView->horizontalHeader()->setStretchLastSection(true);
     updateStatusLabel(QStringLiteral("共 %1 条记录").arg(m_model->rowCount()), false);
+}
+
+void TaskLogStatisticsPage::showStatisticsTab()
+{
+    if (ui && ui->tabWidget) {
+        ui->tabWidget->setCurrentWidget(ui->statisticsTab);
+    }
+}
+
+void TaskLogStatisticsPage::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    if (!ui || !ui->tableView) {
+        return;
+    }
+
+    if (event->type() == QEvent::StyleChange
+        || event->type() == QEvent::PaletteChange
+        || event->type() == QEvent::ApplicationPaletteChange) {
+        applyTableTheme(ui->tableView);
+    }
+}
+
+void TaskLogStatisticsPage::showTransportTab()
+{
+    if (ui && ui->tabWidget) {
+        ui->tabWidget->setCurrentWidget(ui->transportTab);
+    }
 }
 
 QString TaskLogStatisticsPage::resolveDatabasePath() const

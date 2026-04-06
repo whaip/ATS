@@ -1,4 +1,4 @@
-QT       += core gui concurrent printsupport openglwidgets serialport sql
+QT       += core gui concurrent printsupport openglwidgets serialport sql network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -42,6 +42,9 @@ SOURCES += \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.cpp \
     FaultDiagnostic/TaskLogging/testtasklogservice.cpp \
     FaultDiagnostic/TaskLogging/tasklogstatisticspage.cpp \
+    FaultDiagnostic/TaskTransport/tasklogtransportsettings.cpp \
+    FaultDiagnostic/TaskTransport/tasklogtransportservice.cpp \
+    FaultDiagnostic/TaskTransport/tasklogtransportwidget.cpp \
     FaultDiagnostic/Runtime/systemorchestration.cpp \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.cpp \
     FaultDiagnostic/TPS/Manager/tpsbuiltinregistry.cpp \
@@ -111,6 +114,9 @@ HEADERS += \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.h \
     FaultDiagnostic/TaskLogging/testtasklogservice.h \
     FaultDiagnostic/TaskLogging/tasklogstatisticspage.h \
+    FaultDiagnostic/TaskTransport/tasklogtransportsettings.h \
+    FaultDiagnostic/TaskTransport/tasklogtransportservice.h \
+    FaultDiagnostic/TaskTransport/tasklogtransportwidget.h \
     FaultDiagnostic/Runtime/systemorchestration.h \
     FaultDiagnostic/TPS/Manager/tpspluginmanager.h \
     FaultDiagnostic/TPS/Manager/tpsbuiltinregistry.h \
@@ -168,6 +174,7 @@ FORMS += \
     FaultDiagnostic/UI/configurationwindow.ui \
     FaultDiagnostic/UI/faultdiagnostic.ui \
     FaultDiagnostic/TaskLogging/tasklogstatisticspage.ui \
+    FaultDiagnostic/TaskTransport/tasklogtransportwidget.ui \
     FaultDiagnostic/Workflow/PortAllocation/portallocationreviewdialog.ui \
     FaultDiagnostic/Workflow/WiringGuide/wiringguidedialog.ui \
     FaultDiagnostic/Core/deviceportmanager/deviceportmanager/deviceportmanager.ui \

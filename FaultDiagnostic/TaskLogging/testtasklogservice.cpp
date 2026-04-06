@@ -1,5 +1,7 @@
 #include "testtasklogservice.h"
+#include "../TaskTransport/tasklogtransportservice.h"
 #include "../Core/testtaskcontextmanager.h"
+#include "../../logger.h"
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -179,6 +181,8 @@ bool TestTaskLogService::appendTaskRecord(const TaskContextRecord &record, QStri
         }
         return false;
     }
+
+    TaskLogTransportBroadcaster::instance()->notifyStatisticsChanged(resolveDatabasePath());
 
     return true;
 }

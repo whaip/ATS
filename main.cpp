@@ -4,6 +4,7 @@
 
 #include "ComponentsDetect/yolomodel.h"
 #include "ComponentsDetect/yolostation.h"
+#include "FaultDiagnostic/TaskTransport/tasklogtransportservice.h"
 
 #include "HDCamera/camerastation.h"
 
@@ -20,6 +21,8 @@ int main(int argc, char *argv[])
     Logger::init();
 
     StyleManager::applyDefault(a);
+
+    TaskLogTransportBroadcaster::instance()->start();
 
     // Start YOLO inference station thread at app startup.
     YoloStation::instance()->start();

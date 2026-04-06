@@ -961,6 +961,7 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (m_taskLogStatisticsPage) {
                 m_taskLogStatisticsPage->refresh();
+                m_taskLogStatisticsPage->showStatisticsTab();
             }
             if (m_taskLogStatisticsPageIndex >= 0 && m_taskLogStatisticsPageIndex < ui->pagesStack->count()) {
                 ui->pagesStack->setCurrentIndex(m_taskLogStatisticsPageIndex);
@@ -1242,6 +1243,25 @@ MainWindow::MainWindow(QWidget *parent)
         ui->actionxiangji->setShortcut(QKeySequence(QStringLiteral("Ctrl+4")));
         connect(ui->actionxiangji, &QAction::triggered, this, [openIrCameraPage]() {
             openIrCameraPage();
+        });
+    }
+
+    if (ui->action_TaskLogTransportSettings) {
+        connect(ui->action_TaskLogTransportSettings, &QAction::triggered, this, [this]() {
+            if (!ui || !ui->pagesStack) {
+                return;
+            }
+            if (!m_taskLogStatisticsPage) {
+                m_taskLogStatisticsPage = new TaskLogStatisticsPage();
+                m_taskLogStatisticsPageIndex = addPage(m_taskLogStatisticsPage, QStringLiteral("测试日志统计"), false);
+            }
+            if (m_taskLogStatisticsPage) {
+                m_taskLogStatisticsPage->refresh();
+                m_taskLogStatisticsPage->showTransportTab();
+            }
+            if (m_taskLogStatisticsPageIndex >= 0 && m_taskLogStatisticsPageIndex < ui->pagesStack->count()) {
+                ui->pagesStack->setCurrentIndex(m_taskLogStatisticsPageIndex);
+            }
         });
     }
 

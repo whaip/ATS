@@ -1069,6 +1069,7 @@
     <addaction name="actionxiangji"/>
     <addaction name="actionpcb"/>
     <addaction name="actionpcb_2"/>
+    <addaction name="action_TaskLogTransportSettings"/>
    </widget>
    <widget class="QMenu" name="menu_4">
     <property name="title">
@@ -1173,6 +1174,11 @@
   <action name="actionshouye">
    <property name="text">
     <string>首页</string>
+   </property>
+  </action>
+  <action name="action_TaskLogTransportSettings">
+   <property name="text">
+    <string>统计结果发送设置 </string>
    </property>
   </action>
  </widget>
