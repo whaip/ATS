@@ -1,6 +1,8 @@
-#include "tasklogtransportwidget.h"
+﻿#include "tasklogtransportwidget.h"
 #include "ui_tasklogtransportwidget.h"
+
 #include "tasklogtransportservice.h"
+
 #include <QAbstractItemView>
 #include <QComboBox>
 #include <QDateTime>
@@ -65,7 +67,7 @@ QString recordsSummaryText(const QJsonArray &records)
         }
         parts.append(QStringLiteral("%1:%2").arg(name).arg(object.value(QStringLiteral("count")).toInt()));
     }
-    return parts.join(QStringLiteral("；"));
+    return parts.join(QStringLiteral("; "));
 }
 
 QString safeJsonString(const QJsonObject &object, const QString &key)
@@ -93,12 +95,13 @@ TaskLogTransportWidget::TaskLogTransportWidget(QWidget *parent)
 
     ui->receivedTable->setColumnCount(6);
     ui->receivedTable->setHorizontalHeaderLabels(
-        QStringList() << QStringLiteral("接收时间")
-                      << QStringLiteral("协议")
-                      << QStringLiteral("检测设备名称")
-                      << QStringLiteral("板卡总数")
-                      << QStringLiteral("记录时间")
-                      << QStringLiteral("故障统计"));
+        QStringList()
+        << QString::fromUtf8(u8"接收时间")
+        << QString::fromUtf8(u8"协议")
+        << QString::fromUtf8(u8"检测设备名称")
+        << QString::fromUtf8(u8"板卡总数")
+        << QString::fromUtf8(u8"记录时间")
+        << QString::fromUtf8(u8"故障统计"));
     ui->receivedTable->horizontalHeader()->setStretchLastSection(true);
     ui->receivedTable->verticalHeader()->setVisible(false);
     ui->receivedTable->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -109,29 +112,35 @@ TaskLogTransportWidget::TaskLogTransportWidget(QWidget *parent)
     loadSettingsToUi();
 
     connect(ui->saveButton, &QPushButton::clicked, this, [this]() {
-        saveTaskLogTransportSettings(settingsFromUi());
-        updateTestStatus(QStringLiteral("发送设置已保存"), false);
+        const TaskLogTransportSettings settings = settingsFromUi();
+        saveTaskLogTransportSettings(settings);
+        TaskLogTransportBroadcaster::instance()->applySettings(settings, true);
+        updateTestStatus(QString::fromUtf8(u8"发送设置已保存"), false);
     });
+
     connect(ui->startListenButton, &QPushButton::clicked, this, [this]() {
         QString errorMessage;
         if (startListener(&errorMessage)) {
             const TaskLogTransportSettings settings = settingsFromUi();
-            updateTestStatus(QStringLiteral("监听已启动，正在接收发送端实时数据：%1 %2:%3")
-                                 .arg(taskLogTransportProtocolLabel(settings.testProtocol),
-                                      settings.listenAddress.trimmed(),
-                                      QString::number(settings.listenPort)),
-                             false);
+            updateTestStatus(
+                QString::fromUtf8(u8"监听已启动，等待接收 %1 %2:%3 的实时统计数据")
+                    .arg(taskLogTransportProtocolLabel(settings.testProtocol),
+                         settings.listenAddress.trimmed(),
+                         QString::number(settings.listenPort)),
+                false);
         } else {
-            updateTestStatus(QStringLiteral("监听启动失败：%1").arg(errorMessage), true);
+            updateTestStatus(QString::fromUtf8(u8"监听启动失败：%1").arg(errorMessage), true);
         }
     });
+
     connect(ui->stopListenButton, &QPushButton::clicked, this, [this]() {
         stopListener();
-        updateTestStatus(QStringLiteral("监听已停止"), false);
+        updateTestStatus(QString::fromUtf8(u8"监听已停止"), false);
     });
+
     connect(ui->clearButton, &QPushButton::clicked, this, [this]() {
         clearReceivedTable();
-        updateTestStatus(QStringLiteral("接收表格已清空"), false);
+        updateTestStatus(QString::fromUtf8(u8"接收表格已清空"), false);
     });
 }
 
@@ -163,7 +172,7 @@ void TaskLogTransportWidget::loadSettingsToUi()
 
 TaskLogTransportSettings TaskLogTransportWidget::settingsFromUi() const
 {
-    TaskLogTransportSettings settings;
+    TaskLogTransportSettings settings = loadTaskLogTransportSettings();
     settings.sendEnabled = ui->sendEnabledCheckBox->isChecked();
     settings.sendProtocol = taskLogTransportProtocolFromKey(ui->sendProtocolCombo->currentData().toString());
     settings.sendHost = ui->sendHostEdit->text().trimmed();
@@ -186,12 +195,12 @@ void TaskLogTransportWidget::appendReceivedPayload(const QString &transport, con
     const QJsonDocument document = QJsonDocument::fromJson(trimmedPayload, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         appendReceivedRow(transport,
-                          QStringLiteral("解析失败"),
+                          QString::fromUtf8(u8"解析失败"),
                           0,
                           QString(),
-                          QStringLiteral("原始数据不是有效统计 JSON"),
+                          QString::fromUtf8(u8"收到的内容不是有效 JSON"),
                           QString::fromUtf8(trimmedPayload));
-        updateTestStatus(QStringLiteral("已收到数据，但解析失败"), true);
+        updateTestStatus(QString::fromUtf8(u8"收到数据，但内容不是有效 JSON"), true);
         return;
     }
 
@@ -202,7 +211,7 @@ void TaskLogTransportWidget::appendReceivedPayload(const QString &transport, con
                       safeJsonString(object, QStringLiteral("recordTime")),
                       recordsSummaryText(object.value(QStringLiteral("records")).toArray()),
                       QString::fromUtf8(trimmedPayload));
-    updateTestStatus(QStringLiteral("已收到发送端实时统计数据"), false);
+    updateTestStatus(QString::fromUtf8(u8"已收到发送端实时统计数据"), false);
 }
 
 void TaskLogTransportWidget::appendReceivedRow(const QString &transport,
@@ -247,7 +256,7 @@ bool TaskLogTransportWidget::startListener(QString *errorMessage)
     const QHostAddress address(settings.listenAddress);
     if (address.isNull()) {
         if (errorMessage) {
-            *errorMessage = QStringLiteral("监听地址无效");
+            *errorMessage = QString::fromUtf8(u8"监听地址无效");
         }
         return false;
     }
@@ -324,7 +333,8 @@ void TaskLogTransportWidget::handleTcpConnection()
             socket->deleteLater();
         });
 
-        if (taskLogTransportProtocolFromKey(ui->testProtocolCombo->currentData().toString()) == TaskLogTransportProtocol::Http) {
+        if (taskLogTransportProtocolFromKey(ui->testProtocolCombo->currentData().toString())
+            == TaskLogTransportProtocol::Http) {
             connect(socket, &QTcpSocket::readyRead, this, [socket]() {
                 socket->write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK");
                 socket->flush();

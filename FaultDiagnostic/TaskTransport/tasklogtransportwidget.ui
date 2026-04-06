@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>TaskLogTransportWidget</class>
  <widget class="QWidget" name="TaskLogTransportWidget">
@@ -32,7 +32,7 @@
    <item>
     <widget class="QGroupBox" name="sendGroupBox">
      <property name="title">
-      <string>实时发送设置</string>
+      <string>发送设置</string>
      </property>
      <layout class="QGridLayout" name="sendGridLayout">
       <property name="horizontalSpacing">
@@ -162,7 +162,7 @@
         <item row="1" column="3" colspan="3">
          <widget class="QLabel" name="testStatusLabel">
           <property name="text">
-           <string>等待连接建立后接收实时数据</string>
+           <string>保存发送设置后，启动监听以确认实时发送的数据已经成功到达。</string>
           </property>
          </widget>
         </item>

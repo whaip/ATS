@@ -18,6 +18,9 @@ public:
     static QByteArray buildTestPayload();
 
     static bool sendStatistics(const QString &databasePath, QString *errorMessage = nullptr);
+    static bool sendStatistics(const QString &databasePath,
+                               const TaskLogTransportSettings &settings,
+                               QString *errorMessage = nullptr);
     static bool sendPayload(const TaskLogTransportSettings &settings,
                             const QByteArray &payload,
                             QString *errorMessage = nullptr);
@@ -31,6 +34,7 @@ public:
 
     void start();
     void setDatabasePath(const QString &databasePath);
+    void applySettings(const TaskLogTransportSettings &settings, bool sendImmediately = true);
     void notifyStatisticsChanged(const QString &databasePath = QString());
 
 private:
@@ -43,6 +47,7 @@ private:
     QString m_databasePath;
     QThread *m_thread = nullptr;
     TaskLogTransportWorker *m_worker = nullptr;
+    TaskLogTransportSettings m_settings;
 };
 
 #endif // TASKLOGTRANSPORTSERVICE_H

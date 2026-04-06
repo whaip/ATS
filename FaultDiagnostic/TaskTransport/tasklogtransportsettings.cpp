@@ -95,4 +95,5 @@ void saveTaskLogTransportSettings(const TaskLogTransportSettings &settings)
     qsettings.setValue(QStringLiteral("listenPort"), settings.listenPort);
     qsettings.setValue(QStringLiteral("broadcastIntervalMs"), settings.broadcastIntervalMs);
     qsettings.endGroup();
+    qsettings.sync();
 }

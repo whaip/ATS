@@ -101,6 +101,11 @@ QString normalizedErrorKey(const QString &errorMessage)
 class TaskLogTransportWorker : public QObject
 {
 public:
+    void setSettings(const TaskLogTransportSettings &settings)
+    {
+        m_settings = settings;
+    }
+
     void startLoop(int intervalMs)
     {
         if (!m_timer) {
@@ -140,7 +145,7 @@ private:
         }
 
         QString errorMessage;
-        if (TaskLogTransportService::sendStatistics(databasePath, &errorMessage)) {
+        if (TaskLogTransportService::sendStatistics(databasePath, m_settings, &errorMessage)) {
             m_lastLoggedError.clear();
             return;
         }
@@ -173,6 +178,7 @@ private:
     QString m_databasePath;
     QString m_lastLoggedError;
     QTimer *m_timer = nullptr;
+    TaskLogTransportSettings m_settings;
 };
 
 QByteArray TaskLogTransportService::buildStatisticsPayload(const QString &databasePath, QString *errorMessage)
@@ -269,7 +275,13 @@ QByteArray TaskLogTransportService::buildTestPayload()
 
 bool TaskLogTransportService::sendStatistics(const QString &databasePath, QString *errorMessage)
 {
-    const TaskLogTransportSettings settings = loadTaskLogTransportSettings();
+    return sendStatistics(databasePath, loadTaskLogTransportSettings(), errorMessage);
+}
+
+bool TaskLogTransportService::sendStatistics(const QString &databasePath,
+                                             const TaskLogTransportSettings &settings,
+                                             QString *errorMessage)
+{
     if (!settings.sendEnabled) {
         return true;
     }
@@ -369,6 +381,7 @@ TaskLogTransportBroadcaster *TaskLogTransportBroadcaster::instance()
 TaskLogTransportBroadcaster::TaskLogTransportBroadcaster(QObject *parent)
     : QObject(parent)
 {
+    m_settings = loadTaskLogTransportSettings();
 }
 
 void TaskLogTransportBroadcaster::start()
@@ -377,8 +390,7 @@ void TaskLogTransportBroadcaster::start()
         return;
     }
 
-    const TaskLogTransportSettings settings = loadTaskLogTransportSettings();
-    const int intervalMs = settings.broadcastIntervalMs > 0 ? settings.broadcastIntervalMs : 1000;
+    const int intervalMs = m_settings.broadcastIntervalMs > 0 ? m_settings.broadcastIntervalMs : 1000;
 
     m_thread = new QThread(this);
     m_worker = new TaskLogTransportWorker();
@@ -400,6 +412,7 @@ void TaskLogTransportBroadcaster::start()
         if (!m_worker) {
             return;
         }
+        m_worker->setSettings(m_settings);
         m_worker->setDatabasePath(databasePath);
         m_worker->startLoop(intervalMs);
     }, Qt::QueuedConnection);
@@ -410,6 +423,25 @@ void TaskLogTransportBroadcaster::setDatabasePath(const QString &databasePath)
     if (!databasePath.trimmed().isEmpty()) {
         m_databasePath = QDir::cleanPath(databasePath);
     }
+}
+
+void TaskLogTransportBroadcaster::applySettings(const TaskLogTransportSettings &settings, bool sendImmediately)
+{
+    m_settings = settings;
+
+    if (!m_worker) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(m_worker, [this, settings, sendImmediately]() {
+        if (!m_worker) {
+            return;
+        }
+        m_worker->setSettings(settings);
+        if (sendImmediately) {
+            m_worker->notifyStatisticsChanged(resolveDatabasePath());
+        }
+    }, Qt::QueuedConnection);
 }
 
 void TaskLogTransportBroadcaster::notifyStatisticsChanged(const QString &databasePath)
