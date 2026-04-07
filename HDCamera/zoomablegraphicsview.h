@@ -13,8 +13,11 @@ class ZoomableGraphicsView : public QGraphicsView
 public:
     explicit ZoomableGraphicsView(QWidget *parent = nullptr);
 
+    // 设置当前显示图像；首次加载或图像分辨率变化时会自动适配视图。
     void setImage(const QImage &image);
+    // 恢复到适应窗口的初始视图。
     void resetView();
+    // 是否允许按住左键拖拽平移。
     void setLeftDragPanningEnabled(bool enabled);
     bool leftDragPanningEnabled() const;
 
@@ -26,6 +29,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    // 在需要时执行 fitInView，但不在连续视频帧中反复重置用户缩放状态。
     void updateFitIfNeeded();
 
     QGraphicsScene *m_scene = nullptr;

@@ -71,6 +71,7 @@ DataGenerateCard::DataGenerateCard(QWidget *parent)
     , ui(new Ui::DataGenerateCard)
 {
     ui->setupUi(this);
+    // 生成卡页面负责 5711 输出通道的选择、配置和启动停止控制。
     buildUi();
 }
 
@@ -97,6 +98,7 @@ bool DataGenerateCard::eventFilter(QObject *watched, QEvent *event)
 
 void DataGenerateCard::buildUi()
 {
+    // 绑定 .ui 控件并建立输出控制按钮行为。
     m_channelsLayout = ui->channelsLayout;
     m_btnStart = ui->btnStartorStopOutput;
     m_btnStop = nullptr;
@@ -164,6 +166,7 @@ void DataGenerateCard::ensure5711Worker()
     if (m_worker5711 || !m_manager) {
         return;
     }
+    // 只有真正需要下发输出时才创建 worker。
     m_worker5711 = m_manager->create5711Worker();
 }
 
@@ -178,6 +181,7 @@ JYDeviceConfig DataGenerateCard::build5711Config(const QVector<int> &channels) c
     cfg5711.lowRange = -10.0;
     cfg5711.highRange = 10.0;
 
+    // 只组装当前选中的输出通道，未勾选通道不下发波形。
     int maxChannel = -1;
     for (int ch : channels) {
         cfg5711.enabledChannels.push_back(ch);
@@ -248,6 +252,7 @@ void DataGenerateCard::buildChannels()
     const int columns = 4;
 
     for (int ch = 0; ch < totalChannels; ++ch) {
+        // 当前约定前 16 路显示为电流型，后 16 路显示为电压型。
         ChannelConfig cfg;
         cfg.mode = (ch <= 15) ? ChannelConfig::Mode::Current : ChannelConfig::Mode::Voltage;
         cfg.waveform.channel = ch;
@@ -340,6 +345,7 @@ void DataGenerateCard::openChannelEditor(int channel)
         return;
     }
 
+    // 双击通道卡片后，按当前波形类型动态生成参数编辑器。
     ChannelConfig cfg = m_channelConfigs[channel];
     cfg.waveform.ensureValid();
 

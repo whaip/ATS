@@ -5,6 +5,7 @@
 
 #include "../diagnosticplugininterface.h"
 
+// 显示器件的诊断插件框架，负责消费采样数据并输出故障报告。
 class DisplayDiagnosticPlugin : public QObject, public DiagnosticPluginInterface
 {
     Q_OBJECT

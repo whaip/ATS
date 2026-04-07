@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// IC 元件的 TPS 插件框架，负责定义策略参数和资源需求。
 class ICTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

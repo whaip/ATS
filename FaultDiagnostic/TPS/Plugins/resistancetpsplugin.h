@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// 电阻元件的 TPS 插件，实现测量策略、端口需求和设备计划生成。
 class ResistanceTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

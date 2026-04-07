@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// 二极管元件的 TPS 插件框架，负责定义策略参数和资源需求。
 class DiodeTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

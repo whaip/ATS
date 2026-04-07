@@ -20,6 +20,7 @@ exists(D:/QT/6.7.3/msvc2022_64/plugins/sqldrivers/qsqlite.dll) {
 
 SOURCES += \
     BoardManager/boardmanager.cpp \
+    BoardManager/featuredatabaserebuilder.cpp \
     ComponentsDetect/componentsdetect.cpp \
     ComponentsDetect/yolomodel.cpp \
     ComponentsDetect/yolostation.cpp \
@@ -88,6 +89,7 @@ SOURCES += \
 
 HEADERS += \
     BoardManager/boardmanager.h \
+    BoardManager/featuredatabaserebuilder.h \
     ComponentsDetect/componentsdetect.h \
     ComponentsDetect/componenttypes.h \
     ComponentsDetect/yolomodel.h \

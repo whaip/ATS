@@ -3,6 +3,7 @@
 CameraStationClient::CameraStationClient(QObject *parent)
     : QObject(parent)
 {
+    // 客户端只做轻量转发，不直接持有底层相机设备。
     connect(CameraStation::instance(), &CameraStation::imageCaptured,
             this, &CameraStationClient::onStationImageCaptured,
             Qt::QueuedConnection);

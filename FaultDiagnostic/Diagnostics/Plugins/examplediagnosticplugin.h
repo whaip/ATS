@@ -5,6 +5,7 @@
 
 #include "../diagnosticplugininterface.h"
 
+// 示例诊断插件，用于演示波形一致性和温度阈值的诊断方式。
 class ExampleDiagnosticPlugin : public QObject, public DiagnosticPluginInterface
 {
     Q_OBJECT

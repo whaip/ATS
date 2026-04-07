@@ -15,6 +15,7 @@ constexpr qint64 kMicrosPerSecond = 1000000;
 WaveformDataManager::WaveformDataManager(QObject *parent)
     : QObject(parent)
 {
+    // 视图构建放到并发任务中，避免主线程在大窗口缩放时卡顿。
     m_viewWatcher = new QFutureWatcher<WaveformViewFrame>(this);
     connect(m_viewWatcher, &QFutureWatcher<WaveformViewFrame>::finished, this, [this]() {
         const WaveformViewFrame frame = m_viewWatcher->result();
@@ -71,6 +72,7 @@ void WaveformDataManager::appendAlignedBatch(const JYAlignedBatch &batch)
         return;
     }
 
+    // batch 内已经按设备完成时间对齐，这里只负责拆包并落到统一时间轴缓存。
     for (auto it = batch.packets.cbegin(); it != batch.packets.cend(); ++it) {
         appendPacket(it.key(), it.value());
     }
@@ -97,6 +99,7 @@ void WaveformDataManager::requestView(const QStringList &seriesKeys,
                                       int pixelWidth,
                                       bool autoFollow)
 {
+    // 这里只记录“最后一次”视图请求，密集缩放时旧请求会被自然覆盖。
     {
         QMutexLocker locker(&m_mutex);
         m_pendingRequest.seriesKeys = seriesKeys;
@@ -333,6 +336,7 @@ WaveformViewFrame WaveformDataManager::buildFrameFromSeries(const QHash<QString,
         }
 
         const qint64 count = seriesEndSeq - seriesBeginSeq;
+        // 点数较少时直接输出原始点，点数远大于像素时改为桶化抽稀，兼顾性能和波形形态。
         if (count <= safePixelWidth * 2) {
             frame.series.push_back(buildDenseSeries(key, series, capacity, seriesBeginSeq, seriesEndSeq, globalWindowStartSeq));
         } else {
@@ -373,6 +377,7 @@ void WaveformDataManager::processPendingView()
         }
     }
 
+    // 在后台线程生成当前窗口视图，完成后通过 viewReady 回到界面线程。
     m_viewWatcher->setFuture(QtConcurrent::run([seriesMap, request, epoch, capacity]() {
         return WaveformDataManager::buildFrameFromSeries(seriesMap, request, epoch, capacity);
     }));
@@ -394,6 +399,7 @@ void WaveformDataManager::appendPacket(JYDeviceKind kind, const JYDataPacket &pa
     const double packetStartSeconds = static_cast<double>(packet.timestampMs) / 1000.0 - epochSeconds;
     const qint64 packetStartSeq = qMax<qint64>(0, static_cast<qint64>(std::llround(packetStartSeconds * kTargetResolutionHz)));
 
+    // 不同采样率的数据在这里都被映射到统一 seq 轴，后续显示时就能共用一套逻辑。
     for (int ch = 0; ch < packet.channelCount; ++ch) {
         const QString key = seriesKey(kind, ch);
         if (!m_activeSeries.contains(key)) {

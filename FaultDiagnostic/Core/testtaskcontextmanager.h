@@ -14,6 +14,7 @@
 #include "../Diagnostics/diagnosticdatatypes.h"
 #include "../TPS/Core/tpsmodels.h"
 
+// 一个任务占用的设备端口句柄，用于后续回溯端口分配结果。
 struct TaskPortHandle
 {
     QString taskId;
@@ -26,6 +27,7 @@ struct TaskPortHandle
     bool occupied = true;
 };
 
+// 单个测试任务的完整上下文快照，会被持久化到运行目录。
 struct TaskContextRecord
 {
     QString taskId;
@@ -64,11 +66,13 @@ public:
     void setStorageDir(const QString &dirPath);
     QString storageDir() const;
 
+    // 创建任务上下文主记录，后续各阶段结果逐步补齐。
     QString createTask(const QString &runId,
                        const QString &boardId,
                        const QString &componentRef,
                        const QString &pluginId);
 
+    // 记录参数快照、端口占用、接线引导、设备配置和诊断结果。
     bool setParamSnapshot(const QString &taskId,
                           const QVector<TPSParamDefinition> &definitions,
                           const QMap<QString, QVariant> &values);
@@ -101,6 +105,7 @@ public:
     TaskContextRecord task(const QString &taskId) const;
     QVector<TaskContextRecord> tasks() const;
 
+    // 将任务上下文落盘到 JSON 文件，供日志、统计和复盘使用。
     bool persistTask(const QString &taskId, QString *errorMessage = nullptr) const;
 
 private:

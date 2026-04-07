@@ -228,6 +228,7 @@ HDCamera::HDCamera(QWidget *parent)
 
     Logger::log(QStringLiteral("HDCamera created"), Logger::Level::Info);
 
+    // 界面通过 CameraStationClient 与全局采集站交互，避免每个页面各自开相机。
     m_camera = new CameraStationClient(this);
 
     connect(CameraStation::instance(), &CameraStation::configureFinished, this,
@@ -457,6 +458,7 @@ QImage HDCamera::renderComponentDetectOverlay(const QImage &frame,
                                              const QList<CompLabel> &labels,
                                              const QPolygonF &pcbQuad) const
 {
+    // 检测结果统一叠加在原图上显示，是否画提取四边形由当前模式决定。
     return renderOverlayHdcamera(frame, labels, pcbQuad, m_drawExtractQuad);
 }
 
@@ -505,6 +507,7 @@ void HDCamera::initCameraSettingsUi()
         return;
     }
 
+    // 用单次定时器合并频繁的下拉框变更，减少重复重配相机。
     m_applySettingsTimer = new QTimer(this);
     m_applySettingsTimer->setSingleShot(true);
     m_applySettingsTimer->setInterval(250);
@@ -569,6 +572,7 @@ void HDCamera::refreshCameraList()
         return;
     }
 
+    // 先刷新 DirectShow 枚举缓存，再同步更新相机下拉框。
     m_capabilitiesByDevice.clear();
 
     QSignalBlocker b1(ui->comboCamera);
@@ -599,6 +603,7 @@ void HDCamera::refreshResolutionListForCurrentCamera()
         return;
     }
 
+    // 分辨率列表来自当前设备的能力枚举；若驱动不给能力，则退回通用预设。
     QSignalBlocker b2(ui->comboResolution);
     ui->comboResolution->clear();
 
@@ -675,6 +680,7 @@ void HDCamera::refreshPixelFormatListForCurrentSelection()
         return;
     }
 
+    // 像素格式与分辨率绑定，列表需要随当前分辨率重新计算。
     QSignalBlocker b(ui->comboPixelFormat);
     ui->comboPixelFormat->clear();
 
@@ -757,6 +763,7 @@ void HDCamera::refreshFpsListForCurrentSelection()
         return;
     }
 
+    // 帧率列表按“设备 + 分辨率 + 像素格式”组合过滤，尽量只保留可行项。
     QSignalBlocker b(ui->comboFps);
     const int prev = ui->comboFps->currentData().toInt();
     ui->comboFps->clear();
@@ -851,6 +858,7 @@ void HDCamera::applyCameraSettingsNow()
         return;
     }
 
+    // 将当前 UI 选择转换成单例采集站配置，请求会在后台线程异步生效。
     CameraStation::Config cfg;
     cfg.deviceIndex = ui->comboCamera->currentData().toInt();
     const QSize res = ui->comboResolution->currentData().toSize();

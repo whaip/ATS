@@ -691,6 +691,7 @@ FaultDiagnostic::FaultDiagnostic(QWidget *parent)
     , ui(new Ui::FaultDiagnostic)
 {
     ui->setupUi(this);
+    // 页面初始化时完成：UI 组装、插件管理器创建、运行编排注入和日志模块准备。
     buildWidgets();
     applyThemeQss();
     m_runtime = new SystemRuntimeOrchestration(this);
@@ -931,6 +932,7 @@ void FaultDiagnostic::selectComponentById(const QString &id)
 
 void FaultDiagnostic::startTest()
 {
+    // 默认从当前选中的元件开始测试；若未选中则回退到一个默认位号。
     const int currentIndex = m_list ? m_list->currentRow() : -1;
     QString componentRef;
     if (currentIndex >= 0 && currentIndex < m_components.size()) {
@@ -946,6 +948,7 @@ void FaultDiagnostic::startTestWith(const QString &componentRef,
                                     const QString &pluginId,
                                     const QMap<QString, QVariant> &parameters)
 {
+    // 提供给外部调用的快捷入口：组装为单条批任务后复用批量测试链路。
     TestTask task;
     task.componentRef = componentRef;
     task.pluginId = pluginId;
@@ -955,6 +958,7 @@ void FaultDiagnostic::startTestWith(const QString &componentRef,
 
 void FaultDiagnostic::startBatchTest(const QVector<TestTask> &tasks)
 {
+    // 批量测试会先准备每个任务的 TPS 上下文，再按统一 runId 串行执行。
     if (tasks.isEmpty()) {
         startTest();
         return;
@@ -2298,6 +2302,8 @@ void FaultDiagnostic::runTest(const QString &componentRef,
                               const QString &pluginId,
                               const QMap<QString, QVariant> &parameters)
 {
+    // 单项测试主流程：
+    // 获取 TPS -> 分配端口 -> 生成设备计划 -> 启动运行 -> 采集温度/波形 -> 诊断 -> 更新界面。
     TPSPluginInterface *plugin = m_tpsManager ? m_tpsManager->plugin(pluginId) : nullptr;
     if (!plugin) {
         QMessageBox::warning(this, tr("测试"), tr("未找到测试插件。"));
@@ -3081,6 +3087,7 @@ void FaultDiagnostic::refreshReport(const ComponentViewData &item)
 
 void FaultDiagnostic::appendTaskLog(const QString &taskId)
 {
+    // 将当前任务的上下文记录追加到 SQLite 统计日志，供统计页和实时发送模块使用。
     if (!m_taskContextManager || !m_taskLogService || taskId.trimmed().isEmpty()) {
         return;
     }

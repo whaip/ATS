@@ -5,6 +5,7 @@
 
 #include "../diagnosticplugininterface.h"
 
+// 通用示例诊断插件，可作为其它元件诊断插件的参考模板。
 class TypicalDiagnosticPlugin : public QObject, public DiagnosticPluginInterface
 {
     Q_OBJECT

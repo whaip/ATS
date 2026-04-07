@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// 通用示例 TPS 插件，可作为其它元件策略插件的参考模板。
 class TypicalTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

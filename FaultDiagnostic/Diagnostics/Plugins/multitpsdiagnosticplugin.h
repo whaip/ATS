@@ -5,6 +5,7 @@
 
 #include "../diagnosticplugininterface.h"
 
+// 多信号示例诊断插件，用于对组合采样结果做统一判定。
 class MultiTpsDiagnosticPlugin : public QObject, public DiagnosticPluginInterface
 {
     Q_OBJECT

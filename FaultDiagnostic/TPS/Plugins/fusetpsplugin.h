@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// 保险丝元件的 TPS 插件框架，负责定义策略参数和资源需求。
 class FuseTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

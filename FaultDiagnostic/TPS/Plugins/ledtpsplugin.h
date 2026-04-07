@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// LED 元件的 TPS 插件框架，负责定义策略参数和资源需求。
 class LedTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// 三极管元件的 TPS 插件，实现测量策略、端口需求和设备计划生成。
 class TransistorTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

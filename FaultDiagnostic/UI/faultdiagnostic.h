@@ -35,12 +35,14 @@ public:
     explicit FaultDiagnostic(QWidget *parent = nullptr);
     ~FaultDiagnostic();
 
+    // 批量测试入口中的一条任务描述。
     struct TestTask {
         QString componentRef;
         QString pluginId;
         QMap<QString, QVariant> parameters;
     };
 
+    // 单个元件在界面上的展示数据，包括热像、波形和报告。
     struct ComponentViewData {
         QString id;
         QString taskId;
@@ -63,9 +65,11 @@ public:
         QString reportHtml;
     };
 
+    // 设置待显示元件列表；运行过程中也可单独增量更新。
     void setComponents(const QVector<ComponentViewData> &items);
     void updateComponent(const ComponentViewData &item);
     SystemRuntimeOrchestration *runtime() const;
+    // 注入设备线程管理器和相机站，供测试流程复用。
     void setRuntimeThreadManager(class JYThreadManager *manager);
     void setRuntimeCameraStation(class CameraStation *station);
     void selectComponentById(const QString &id);
@@ -88,10 +92,12 @@ private slots:
     void onTestClicked();
 
 private:
+    // 绑定设备线程、绘图和界面控件的信号。
     void bindThreadManagerSignals();
     void buildWidgets();
     void applyThemeQss();
     void setCurrentIndex(int index);
+    // 执行单个元件的完整测试链路：TPS、采集、诊断、报告、日志。
     void runTest(const QString &componentRef,
                  const QString &pluginId,
                  const QMap<QString, QVariant> &parameters);
@@ -99,6 +105,7 @@ private:
     void refreshPlot(const ComponentViewData &item);
     void renderCurrentPlot(bool preserveView);
     void refreshReport(const ComponentViewData &item);
+    // 将任务上下文落库到统计日志模块。
     void appendTaskLog(const QString &taskId);
 
     Ui::FaultDiagnostic *ui;

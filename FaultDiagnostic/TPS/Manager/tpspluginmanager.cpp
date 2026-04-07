@@ -39,6 +39,7 @@ void TPSPluginManager::addBuiltin(TPSPluginInterface *plugin)
 
 bool TPSPluginManager::loadAll(QString *error)
 {
+    // 每次重载先恢复为内建插件集合，再叠加目录中的动态插件。
     clearLoaders();
     m_plugins = m_builtins;
 
@@ -61,6 +62,7 @@ bool TPSPluginManager::loadAll(QString *error)
 
         const QStringList entries = dir.entryList(QDir::Files);
         for (const auto &fileName : entries) {
+            // 逐个尝试加载 TPS 插件，无法实例化或接口不匹配时直接跳过。
             const QString path = dir.filePath(fileName);
             auto *loader = new QPluginLoader(path, this);
             QObject *instance = loader->instance();

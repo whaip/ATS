@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// 示例 TPS 插件，用于演示输出、采集、温度阈值等完整策略链路。
 class ExampleTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

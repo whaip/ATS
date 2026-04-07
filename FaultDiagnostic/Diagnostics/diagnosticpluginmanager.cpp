@@ -39,6 +39,7 @@ void DiagnosticPluginManager::addBuiltin(DiagnosticPluginInterface *plugin)
 
 bool DiagnosticPluginManager::loadAll(QString *error)
 {
+    // 每次重载前先清理旧 loader，并保留已经注册的内建插件。
     clearLoaders();
     m_plugins = m_builtins;
 
@@ -57,6 +58,7 @@ bool DiagnosticPluginManager::loadAll(QString *error)
 
     const QStringList entries = dir.entryList(QDir::Files);
     for (const auto &fileName : entries) {
+        // 逐个尝试实例化插件文件，无法转换为诊断接口的对象直接忽略。
         const QString path = dir.filePath(fileName);
         auto *loader = new QPluginLoader(path, this);
         QObject *instance = loader->instance();

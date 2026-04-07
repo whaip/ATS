@@ -41,7 +41,7 @@ CameraController::CameraController(QObject *parent)
     qRegisterMetaType<ImageData>("ImageData");
     qRegisterMetaType<CameraStatus>("CameraStatus");
 
-    // Control thread serializes stop/configure/start so UI threads never block.
+    // 控制线程负责串行执行停止/配置/启动，界面线程只负责投递命令。
     m_controlThread = std::thread(&CameraController::controlLoop, this);
 }
 
@@ -92,6 +92,7 @@ void CameraController::requestStop()
 
 void CameraController::controlLoop()
 {
+    // 控制线程只关心“最终想要的状态”，中间重复请求会被合并。
     while (true) {
         CameraConfig cfg;
         bool doConfig = false;
@@ -198,7 +199,7 @@ bool CameraController::initialize(int deviceIndex)
     const int mjpg = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
     const bool isHighResRequest = (width >= 4000 || height >= 3000);
 
-    // If user didn't specify a format, prefer MJPG for high-res to reduce bandwidth.
+    // 高分辨率下若未明确指定像素格式，优先尝试 MJPG 以减轻带宽压力。
     if (isHighResRequest && m_fourcc == 0) {
         m_fourcc = mjpg;
     }
@@ -419,6 +420,7 @@ void CameraController::captureLoop()
     int readFailCount = 0;
     auto lastAdaptiveAttempt = std::chrono::steady_clock::now() - std::chrono::seconds(10);
 
+    // 抓帧线程只负责尽快从驱动取帧并压入队列，不做耗时图像转换。
     while (isRunning.load()) {
         cv::Mat frame;
         if (!capture.read(frame) || frame.empty()) {
@@ -524,6 +526,7 @@ bool CameraController::reopenCaptureWithFps(int newFps)
 
 void CameraController::processLoop()
 {
+    // 处理线程把 OpenCV Mat 转成 Qt 可用的 QImage，并向外发信号。
     while (isRunning.load()) {
         cv::Mat frame;
         {

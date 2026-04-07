@@ -5,6 +5,7 @@
 
 #include "../diagnosticplugininterface.h"
 
+// 电池元件的诊断插件框架，负责消费采样数据并输出故障报告。
 class BatteryDiagnosticPlugin : public QObject, public DiagnosticPluginInterface
 {
     Q_OBJECT

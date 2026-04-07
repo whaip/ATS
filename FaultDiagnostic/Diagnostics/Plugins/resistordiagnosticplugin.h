@@ -5,6 +5,7 @@
 
 #include "../diagnosticplugininterface.h"
 
+// 电阻元件的诊断插件，实现对采样波形的特征提取和故障判定。
 class ResistorDiagnosticPlugin : public QObject, public DiagnosticPluginInterface
 {
     Q_OBJECT

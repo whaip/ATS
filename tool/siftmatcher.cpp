@@ -1,105 +1,162 @@
 #include "siftmatcher.h"
+
+#include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <set>
-#include <cmath>
-#include <algorithm>
-#include <unordered_map>
+#include <vector>
 
-void SiftMatcher::saveDescriptors(const std::string& filename,
-                                  const std::vector<cv::Mat>& descriptors,
-                                  const std::vector<std::string>& board_id) {
+namespace {
+constexpr int kOrbNFeatures = 2000;
+constexpr float kOrbScaleFactor = 1.2f;
+constexpr int kOrbNLevels = 8;
+constexpr int kOrbEdgeThreshold = 31;
+constexpr int kOrbFirstLevel = 0;
+constexpr int kOrbWtaK = 2;
+constexpr int kOrbPatchSize = 31;
+constexpr int kOrbFastThreshold = 20;
+
+constexpr float kRatioThreshold = 0.75f;
+constexpr double kRansacReprojThreshold = 5.0;
+constexpr double kRansacConfidence = 0.995;
+constexpr int kRansacMaxIters = 2000;
+constexpr int kMinInliers = 12;
+constexpr double kMinInlierRatio = 0.25;
+
+cv::Mat keypointsToMat(const std::vector<cv::KeyPoint> &keypoints)
+{
+    if (keypoints.empty()) {
+        return {};
+    }
+
+    cv::Mat keypointsXY(static_cast<int>(keypoints.size()), 2, CV_32F);
+    for (int i = 0; i < static_cast<int>(keypoints.size()); ++i) {
+        keypointsXY.at<float>(i, 0) = keypoints[static_cast<size_t>(i)].pt.x;
+        keypointsXY.at<float>(i, 1) = keypoints[static_cast<size_t>(i)].pt.y;
+    }
+    return keypointsXY;
+}
+
+bool isKeypointsMatValid(const cv::Mat &mat)
+{
+    return !mat.empty() && mat.type() == CV_32F && mat.cols == 2;
+}
+
+cv::Point2f pointAt(const cv::Mat &mat, int row)
+{
+    return {mat.at<float>(row, 0), mat.at<float>(row, 1)};
+}
+}
+
+void SiftMatcher::saveDescriptors(const std::string &filename,
+                                  const std::vector<cv::Mat> &descriptors,
+                                  const std::vector<cv::Mat> &keypointsXY,
+                                  const std::vector<std::string> &boardIds)
+{
     cv::FileStorage fs(filename, cv::FileStorage::WRITE);
 
     fs << "image_count" << static_cast<int>(descriptors.size());
-
-    for (size_t i = 0; i < descriptors.size(); i++) {
-        fs << "image_name_" + std::to_string(i) << board_id[i];
+    for (size_t i = 0; i < descriptors.size(); ++i) {
+        fs << "image_name_" + std::to_string(i) << boardIds[i];
         fs << "descriptor_" + std::to_string(i) << descriptors[i];
+        fs << "keypoints_xy_" + std::to_string(i) << keypointsXY[i];
     }
 
     fs.release();
 }
 
-void SiftMatcher::loadDescriptors(const std::string& filename,
-                                  std::vector<cv::Mat>& descriptors,
-                                  std::vector<std::string>& board_id) {
+void SiftMatcher::loadDescriptors(const std::string &filename,
+                                  std::vector<cv::Mat> &descriptors,
+                                  std::vector<cv::Mat> &keypointsXY,
+                                  std::vector<std::string> &boardIds)
+{
+    descriptors.clear();
+    keypointsXY.clear();
+    boardIds.clear();
+
     cv::FileStorage fs(filename, cv::FileStorage::READ);
+    if (!fs.isOpened()) {
+        return;
+    }
 
-    int image_count = 0;
-    fs["image_count"] >> image_count;
-
-    for (int i = 0; i < image_count; i++) {
+    int imageCount = 0;
+    fs["image_count"] >> imageCount;
+    for (int i = 0; i < imageCount; ++i) {
         cv::Mat descriptor;
+        cv::Mat keypointsMat;
         std::string name;
 
         fs["image_name_" + std::to_string(i)] >> name;
         fs["descriptor_" + std::to_string(i)] >> descriptor;
+        fs["keypoints_xy_" + std::to_string(i)] >> keypointsMat;
 
         descriptors.push_back(descriptor);
-        board_id.push_back(name);
+        keypointsXY.push_back(keypointsMat);
+        boardIds.push_back(name);
     }
 
     fs.release();
 }
 
-SiftMatcher::SiftMatcher() {
-    if (checkGPU()) {
-        try {
-            gpu_detector = cv::cuda::ORB::create(
-                1800,
-                1.2f,
-                8,
-                31,
-                0,
-                2,
-                cv::ORB::HARRIS_SCORE,
-                31
-            );
-            gpu_matcher = cv::cuda::DescriptorMatcher::createBFMatcher(cv::NORM_HAMMING);
-        } catch (const cv::Exception&) {
-            gpu_detector.release();
-            gpu_matcher.release();
-        }
-    } else {
+SiftMatcher::SiftMatcher()
+{
+    if (!checkGPU()) {
         std::cout << "Warning: GPU not available, falling back to CPU implementation" << std::endl;
+        return;
+    }
+
+    try {
+        gpu_detector = cv::cuda::ORB::create(
+            kOrbNFeatures,
+            kOrbScaleFactor,
+            kOrbNLevels,
+            kOrbEdgeThreshold,
+            kOrbFirstLevel,
+            kOrbWtaK,
+            cv::ORB::HARRIS_SCORE,
+            kOrbPatchSize,
+            kOrbFastThreshold);
+    } catch (const cv::Exception &) {
+        gpu_detector.release();
     }
 }
 
-SiftMatcher::~SiftMatcher() {
+SiftMatcher::~SiftMatcher()
+{
     gpu_detector.release();
-    gpu_matcher.release();
 }
 
-void SiftMatcher::setDatabasePath(const std::string& filename) {
+void SiftMatcher::setDatabasePath(const std::string &filename)
+{
     if (!filename.empty()) {
         m_databasePath = filename;
     }
 }
 
-bool SiftMatcher::checkGPU() {
+bool SiftMatcher::checkGPU()
+{
     try {
-        int deviceCount = cv::cuda::getCudaEnabledDeviceCount();
-        if (deviceCount == 0) {
-            std::cout << "No CUDA devices found" << std::endl;
+        const int deviceCount = cv::cuda::getCudaEnabledDeviceCount();
+        if (deviceCount <= 0) {
             return false;
         }
 
         cv::cuda::DeviceInfo deviceInfo;
         if (!deviceInfo.isCompatible()) {
-            std::cout << "CUDA device is not compatible" << std::endl;
             return false;
         }
 
         cv::cuda::setDevice(0);
-        std::cout << "Using CUDA device: " << deviceInfo.name() << std::endl;
         return true;
-    } catch (const cv::Exception& e) {
-        std::cout << "CUDA initialization failed: " << e.what() << std::endl;
+    } catch (const cv::Exception &) {
         return false;
     }
 }
 
-cv::Mat SiftMatcher::extractDescriptor(const cv::Mat& image, int rotation, bool imageIsPcbCrop) {
+SiftMatcher::FeatureData SiftMatcher::extractFeatures(const cv::Mat &image,
+                                                      int rotation,
+                                                      bool imageIsPcbCrop)
+{
     cv::Mat extracted;
     if (imageIsPcbCrop) {
         extracted = image.clone();
@@ -110,345 +167,269 @@ cv::Mat SiftMatcher::extractDescriptor(const cv::Mat& image, int rotation, bool 
             extracted = image.clone();
         }
     }
+
     if (extracted.empty()) {
-        return cv::Mat();
+        return {};
     }
 
     cv::Mat gray;
-    cv::cvtColor(extracted, gray, cv::COLOR_BGR2GRAY);
+    if (extracted.channels() == 1) {
+        gray = extracted.clone();
+    } else {
+        cv::cvtColor(extracted, gray, cv::COLOR_BGR2GRAY);
+    }
 
-    cv::Mat enhanced;
-    cv::equalizeHist(gray, enhanced);
-
-    cv::Mat denoised;
-    cv::GaussianBlur(enhanced, denoised, cv::Size(3, 3), 0);
-
-    cv::Mat processed = denoised;
+    cv::Mat processed = gray;
     if (rotation >= 0) {
         switch (rotation) {
-        case 0: cv::rotate(processed, processed, cv::ROTATE_90_CLOCKWISE); break;
-        case 1: cv::rotate(processed, processed, cv::ROTATE_180); break;
-        case 2: cv::rotate(processed, processed, cv::ROTATE_90_COUNTERCLOCKWISE); break;
-        default: break;
+        case 0:
+            cv::rotate(processed, processed, cv::ROTATE_90_CLOCKWISE);
+            break;
+        case 1:
+            cv::rotate(processed, processed, cv::ROTATE_180);
+            break;
+        case 2:
+            cv::rotate(processed, processed, cv::ROTATE_90_COUNTERCLOCKWISE);
+            break;
+        default:
+            break;
         }
     }
 
     if (gpu_detector) {
         try {
-            cv::cuda::GpuMat gpu_image(processed);
-            cv::cuda::GpuMat gpu_descriptors;
+            cv::cuda::GpuMat gpuImage(processed);
+            cv::cuda::GpuMat gpuDescriptors;
             std::vector<cv::KeyPoint> keypoints;
 
-            gpu_detector->detectAndCompute(gpu_image, cv::cuda::GpuMat(), keypoints, gpu_descriptors);
-
+            gpu_detector->detectAndCompute(gpuImage, cv::cuda::GpuMat(), keypoints, gpuDescriptors);
             cv::Mat descriptors;
-            gpu_descriptors.download(descriptors);
+            gpuDescriptors.download(descriptors);
 
-            std::cout << "GPU extracted " << keypoints.size() << " keypoints" << std::endl;
-            return descriptors;
-        } catch (const cv::Exception& e) {
-            std::cout << "GPU feature extraction failed: " << e.what() << std::endl;
+            if (!descriptors.empty() && keypoints.size() >= 4) {
+                return {descriptors, keypointsToMat(keypoints)};
+            }
+        } catch (const cv::Exception &) {
         }
     }
 
     cv::Ptr<cv::ORB> orb = cv::ORB::create(
-        1800,
-        1.2f,
-        8,
-        31,
-        0,
-        2,
+        kOrbNFeatures,
+        kOrbScaleFactor,
+        kOrbNLevels,
+        kOrbEdgeThreshold,
+        kOrbFirstLevel,
+        kOrbWtaK,
         cv::ORB::HARRIS_SCORE,
-        31,
-        20
-    );
+        kOrbPatchSize,
+        kOrbFastThreshold);
 
     std::vector<cv::KeyPoint> keypoints;
     cv::Mat descriptors;
     orb->detectAndCompute(processed, cv::noArray(), keypoints, descriptors);
-
-    std::cout << "CPU extracted " << keypoints.size() << " keypoints" << std::endl;
-    return descriptors;
-}
-
-SiftMatcher::MatchResult SiftMatcher::computeMatchScore(const cv::Mat& queryDesc,
-                                                        const cv::Mat& trainDesc,
-                                                        const std::string& board_id) {
-    if (queryDesc.empty() || trainDesc.empty()) {
-        return {board_id, 0, 0};
-    }
-
-    auto scoreMatches = [&](const std::vector<cv::DMatch>& goodMatches,
-                            const char *tag) -> MatchResult {
-        if (goodMatches.empty()) {
-            return {board_id, 0, 0};
-        }
-
-        double minDist = goodMatches[0].distance;
-        double maxDist = goodMatches[0].distance;
-        for (const auto& match : goodMatches) {
-            minDist = std::min(minDist, static_cast<double>(match.distance));
-            maxDist = std::max(maxDist, static_cast<double>(match.distance));
-        }
-
-        std::cout << "  Board " << board_id << " [" << tag << "]: "
-                  << goodMatches.size()
-                  << " good matches (min_dist: " << minDist
-                  << ", max_dist: " << maxDist << ")" << std::endl;
-
-        if (goodMatches.size() < 8) {
-            std::cout << "    Too few good matches, returning low score" << std::endl;
-            return {board_id, static_cast<int>(goodMatches.size()), 0};
-        }
-
-        double avgDistance = 0.0;
-        for (const auto& match : goodMatches) {
-            avgDistance += match.distance;
-        }
-        avgDistance /= goodMatches.size();
-
-        double distanceVariance = 0.0;
-        for (const auto& match : goodMatches) {
-            const double diff = match.distance - avgDistance;
-            distanceVariance += diff * diff;
-        }
-        distanceVariance /= goodMatches.size();
-        const double distanceStdDev = std::sqrt(distanceVariance);
-
-        const double queryCoverage = static_cast<double>(goodMatches.size()) / std::max(1, queryDesc.rows);
-        const double trainCoverage = static_cast<double>(goodMatches.size()) / std::max(1, trainDesc.rows);
-        const double coverageScore = std::min(queryCoverage, trainCoverage);
-
-        const double qualityScore = 1.0 / (1.0 + avgDistance / 24.0);
-        const double consistencyScore = 1.0 / (1.0 + distanceStdDev / 20.0);
-        const double countScore = std::min(1.0, static_cast<double>(goodMatches.size()) / 80.0);
-        const double coverageBoost = std::min(1.0, coverageScore * 6.0);
-
-        double normalizedScore =
-            countScore * 0.35 +
-            qualityScore * 0.25 +
-            consistencyScore * 0.20 +
-            coverageBoost * 0.20;
-
-        if (goodMatches.size() > 24 && avgDistance < 24.0 && distanceStdDev < 12.0) {
-            normalizedScore += 0.08;
-        }
-        if (coverageScore < 0.04) {
-            normalizedScore *= 0.55;
-        }
-        if (avgDistance > 40.0 || distanceStdDev > 25.0) {
-            normalizedScore *= 0.5;
-        }
-
-        const double matchScore = std::clamp(normalizedScore, 0.0, 1.0) * 100.0;
-
-        std::cout << "    Avg distance: " << avgDistance
-                  << ", Std dev: " << distanceStdDev
-                  << ", Coverage: " << coverageScore
-                  << ", Count score: " << countScore
-                  << ", Quality score: " << qualityScore
-                  << ", Consistency: " << consistencyScore
-                  << ", Final score: " << matchScore << std::endl;
-
-        return {board_id, static_cast<int>(goodMatches.size()), matchScore};
-    };
-
-    std::vector<std::vector<cv::DMatch>> forwardMatches;
-    std::vector<std::vector<cv::DMatch>> reverseMatches;
-    try {
-        cv::Ptr<cv::BFMatcher> matcher = cv::BFMatcher::create(cv::NORM_HAMMING, false);
-        matcher->knnMatch(queryDesc, trainDesc, forwardMatches, 2);
-        matcher->knnMatch(trainDesc, queryDesc, reverseMatches, 2);
-    } catch (const cv::Exception& e) {
-        std::cout << "Matching failed for " << board_id << ": " << e.what() << std::endl;
-        return {board_id, 0, 0};
-    }
-
-    constexpr float kRatioThreshold = 0.75f;
-    std::unordered_map<int, cv::DMatch> reverseBest;
-    for (const auto& knn : reverseMatches) {
-        if (knn.size() < 2) {
-            continue;
-        }
-        if (knn[0].distance >= kRatioThreshold * knn[1].distance) {
-            continue;
-        }
-        reverseBest[knn[0].queryIdx] = knn[0];
-    }
-
-    std::vector<cv::DMatch> goodMatches;
-    goodMatches.reserve(forwardMatches.size());
-    for (const auto& knn : forwardMatches) {
-        if (knn.size() < 2) {
-            continue;
-        }
-        const cv::DMatch& best = knn[0];
-        const cv::DMatch& second = knn[1];
-        if (best.distance >= kRatioThreshold * second.distance) {
-            continue;
-        }
-
-        const auto reverseIt = reverseBest.find(best.trainIdx);
-        if (reverseIt == reverseBest.end()) {
-            continue;
-        }
-        if (reverseIt->second.trainIdx != best.queryIdx) {
-            continue;
-        }
-
-        goodMatches.push_back(best);
-    }
-
-    if (goodMatches.empty()) {
-        std::cout << "  Board " << board_id << " [ratio_cross]: 0 good matches, fallback to loose matcher" << std::endl;
-    } else {
-        std::cout << "  Board " << board_id << ": "
-                  << forwardMatches.size() << " knn pairs, "
-                  << goodMatches.size() << " ratio+cross matches" << std::endl;
-    }
-
-    MatchResult strictResult = scoreMatches(goodMatches, "ratio_cross");
-
-    std::vector<cv::DMatch> fallbackMatches;
-    try {
-        cv::Ptr<cv::BFMatcher> matcher = cv::BFMatcher::create(cv::NORM_HAMMING, false);
-        matcher->match(queryDesc, trainDesc, fallbackMatches);
-    } catch (const cv::Exception& e) {
-        std::cout << "Fallback matching failed for " << board_id << ": " << e.what() << std::endl;
-        return strictResult;
-    }
-
-    if (fallbackMatches.empty()) {
-        return strictResult;
-    }
-
-    double minDist = fallbackMatches[0].distance;
-    for (const auto& match : fallbackMatches) {
-        minDist = std::min(minDist, static_cast<double>(match.distance));
-    }
-
-    const double looseThreshold = std::max(2.5 * minDist, 35.0);
-    std::vector<cv::DMatch> looseGoodMatches;
-    for (const auto& match : fallbackMatches) {
-        if (match.distance <= looseThreshold) {
-            looseGoodMatches.push_back(match);
-        }
-    }
-
-    MatchResult looseResult = scoreMatches(looseGoodMatches, "loose_fallback");
-    if (strictResult.matchScore <= 0.0 && looseResult.matchScore > 0.0) {
-        return looseResult;
-    }
-    if (looseResult.matchScore > strictResult.matchScore * 1.2) {
-        return looseResult;
-    }
-    if (strictResult.matchScore > 0.0) {
-        return strictResult;
-    }
-    return looseResult;
-}
-
-std::vector<SiftMatcher::MatchResult> SiftMatcher::matchImage(const cv::Mat& inputImage,
-                                                              bool imageIsPcbCrop) {
-    std::vector<cv::Mat> loadedDescriptors;
-    std::vector<std::string> loadedNames;
-    loadDescriptors(m_databasePath, loadedDescriptors, loadedNames);
-
-    cv::Mat queryDesc = extractDescriptor(inputImage, -1, imageIsPcbCrop);
-    if (queryDesc.empty()) {
-        std::cout << "Warning: Failed to extract descriptors from input image" << std::endl;
+    if (descriptors.empty() || keypoints.size() < 4) {
         return {};
     }
 
-    std::cout << "Query image descriptors: " << queryDesc.rows << " features" << std::endl;
-    std::cout << "Database contains: " << loadedDescriptors.size() << " descriptor sets" << std::endl;
+    return {descriptors, keypointsToMat(keypoints)};
+}
 
-    std::vector<MatchResult> matchResults;
-    for (size_t i = 0; i < loadedDescriptors.size(); i++) {
-        MatchResult result = computeMatchScore(queryDesc, loadedDescriptors[i], loadedNames[i]);
-        matchResults.push_back(result);
+cv::Mat SiftMatcher::extractDescriptor(const cv::Mat &image, int rotation, bool imageIsPcbCrop)
+{
+    return extractFeatures(image, rotation, imageIsPcbCrop).descriptors;
+}
 
-        if (result.goodMatchCount > 0) {
-            std::cout << "Match with " << result.boardId
-                      << ": " << result.goodMatchCount << " good matches, score: "
-                      << result.matchScore << std::endl;
+SiftMatcher::MatchResult SiftMatcher::computeMatchScore(const FeatureData &query,
+                                                        const FeatureData &train,
+                                                        const std::string &boardId)
+{
+    MatchResult result;
+    result.boardId = boardId;
+
+    if (query.descriptors.empty() || train.descriptors.empty()
+        || !isKeypointsMatValid(query.keypointsXY)
+        || !isKeypointsMatValid(train.keypointsXY)) {
+        return result;
+    }
+
+    std::vector<std::vector<cv::DMatch>> knnMatches;
+    try {
+        cv::Ptr<cv::BFMatcher> matcher = cv::BFMatcher::create(cv::NORM_HAMMING, false);
+        matcher->knnMatch(query.descriptors, train.descriptors, knnMatches, 2);
+    } catch (const cv::Exception &e) {
+        std::cout << "Matching failed for " << boardId << ": " << e.what() << std::endl;
+        return result;
+    }
+
+    std::vector<cv::DMatch> goodMatches;
+    goodMatches.reserve(knnMatches.size());
+    for (const auto &pair : knnMatches) {
+        if (pair.size() < 2) {
+            continue;
+        }
+
+        const cv::DMatch &best = pair[0];
+        const cv::DMatch &second = pair[1];
+        if (second.distance <= 0.0f) {
+            continue;
+        }
+        if ((best.distance / second.distance) < kRatioThreshold) {
+            goodMatches.push_back(best);
         }
     }
 
-    std::sort(matchResults.begin(), matchResults.end(), [](const MatchResult& a, const MatchResult& b) {
-        return a.matchScore > b.matchScore;
-    });
+    result.goodMatchCount = static_cast<int>(goodMatches.size());
+    if (result.goodMatchCount < 4) {
+        return result;
+    }
+
+    std::vector<cv::Point2f> queryPoints;
+    std::vector<cv::Point2f> trainPoints;
+    queryPoints.reserve(goodMatches.size());
+    trainPoints.reserve(goodMatches.size());
+    for (const auto &match : goodMatches) {
+        queryPoints.push_back(pointAt(query.keypointsXY, match.queryIdx));
+        trainPoints.push_back(pointAt(train.keypointsXY, match.trainIdx));
+    }
+
+    cv::Mat inlierMask;
+    cv::Mat homography;
+    try {
+        homography = cv::findHomography(queryPoints,
+                                        trainPoints,
+                                        cv::RANSAC,
+                                        kRansacReprojThreshold,
+                                        inlierMask,
+                                        kRansacMaxIters,
+                                        kRansacConfidence);
+    } catch (const cv::Exception &e) {
+        std::cout << "RANSAC failed for " << boardId << ": " << e.what() << std::endl;
+        return result;
+    }
+
+    if (homography.empty() || inlierMask.empty()) {
+        return result;
+    }
+
+    result.inlierCount = cv::countNonZero(inlierMask);
+    result.inlierRatio = static_cast<double>(result.inlierCount) / std::max(1, result.goodMatchCount);
+    result.rejected = (result.inlierCount < kMinInliers) || (result.inlierRatio < kMinInlierRatio);
+    result.matchScore = result.rejected ? 0.0 : result.inlierRatio * 100.0;
+
+    std::cout << "Board " << boardId
+              << ": good=" << result.goodMatchCount
+              << ", inliers=" << result.inlierCount
+              << ", inlier_ratio=" << result.inlierRatio
+              << ", rejected=" << (result.rejected ? "true" : "false")
+              << std::endl;
+
+    return result;
+}
+
+std::vector<SiftMatcher::MatchResult> SiftMatcher::matchImage(const cv::Mat &inputImage,
+                                                              bool imageIsPcbCrop)
+{
+    std::vector<cv::Mat> loadedDescriptors;
+    std::vector<cv::Mat> loadedKeypointsXY;
+    std::vector<std::string> loadedNames;
+    loadDescriptors(m_databasePath, loadedDescriptors, loadedKeypointsXY, loadedNames);
+
+    FeatureData query = extractFeatures(inputImage, -1, imageIsPcbCrop);
+    if (query.descriptors.empty() || !isKeypointsMatValid(query.keypointsXY)) {
+        std::cout << "Warning: Failed to extract valid ORB features from query image" << std::endl;
+        return {};
+    }
+
+    std::vector<MatchResult> matchResults;
+    int invalidTemplateCount = 0;
+    for (size_t i = 0; i < loadedDescriptors.size(); ++i) {
+        FeatureData train;
+        train.descriptors = loadedDescriptors[i];
+        if (i < loadedKeypointsXY.size()) {
+            train.keypointsXY = loadedKeypointsXY[i];
+        }
+
+        if (train.descriptors.empty() || !isKeypointsMatValid(train.keypointsXY)) {
+            ++invalidTemplateCount;
+            continue;
+        }
+
+        MatchResult result = computeMatchScore(query, train, loadedNames[i]);
+        if (!result.rejected && result.inlierCount > 0) {
+            matchResults.push_back(result);
+        }
+    }
+
+    if (invalidTemplateCount > 0) {
+        std::cout << "Warning: " << invalidTemplateCount
+                  << " template entries are missing keypoints_xy. Rebuild descriptors_database.yml"
+                  << std::endl;
+    }
+
+    std::sort(matchResults.begin(), matchResults.end());
 
     std::vector<MatchResult> results;
     std::set<std::string> processedBoardIds;
-
-    for (const auto& result : matchResults) {
-        if (processedBoardIds.find(result.boardId) == processedBoardIds.end()) {
+    for (const auto &result : matchResults) {
+        if (processedBoardIds.insert(result.boardId).second) {
             results.push_back(result);
-            processedBoardIds.insert(result.boardId);
-            std::cout << "Best match for " << result.boardId
-                      << ": score " << result.matchScore
-                      << " (" << result.goodMatchCount << " matches)" << std::endl;
         }
     }
     return results;
 }
 
-void SiftMatcher::appendToDatabase(const std::vector<std::string>& boardid,
-                                   const std::vector<cv::Mat>& images,
-                                   bool imagesArePcbCrops) {
-    std::vector<cv::Mat> descriptors;
-    std::vector<std::string> boardids;
-
-    if (boardid.size() != images.size()) {
+void SiftMatcher::appendToDatabase(const std::vector<std::string> &boardIds,
+                                   const std::vector<cv::Mat> &images,
+                                   bool imagesArePcbCrops)
+{
+    if (boardIds.size() != images.size()) {
         return;
     }
-    try {
-        loadDescriptors(m_databasePath, descriptors, boardids);
-    } catch (const cv::Exception&) {
-        std::cout << "Creating new database" << std::endl;
-    }
 
-    for (int i = 0; i < boardid.size(); ++i) {
-        for (int rotation = -1; rotation < 3; rotation++) {
-            cv::Mat desc = extractDescriptor(images[i], rotation, imagesArePcbCrops);
-            if (!desc.empty()) {
-                descriptors.push_back(desc);
-                boardids.push_back(boardid[i]);
+    std::vector<cv::Mat> descriptors;
+    std::vector<cv::Mat> keypointsXY;
+    std::vector<std::string> names;
+    loadDescriptors(m_databasePath, descriptors, keypointsXY, names);
+
+    for (size_t i = 0; i < boardIds.size(); ++i) {
+        for (int rotation = -1; rotation < 3; ++rotation) {
+            FeatureData features = extractFeatures(images[i], rotation, imagesArePcbCrops);
+            if (features.descriptors.empty() || !isKeypointsMatValid(features.keypointsXY)) {
+                continue;
             }
+            descriptors.push_back(features.descriptors);
+            keypointsXY.push_back(features.keypointsXY);
+            names.push_back(boardIds[i]);
         }
     }
 
-    saveDescriptors(m_databasePath, descriptors, boardids);
+    saveDescriptors(m_databasePath, descriptors, keypointsXY, names);
 }
 
-bool SiftMatcher::removeFromDatabase(const std::string& board_id) {
+bool SiftMatcher::removeFromDatabase(const std::string &boardId)
+{
     std::vector<cv::Mat> descriptors;
-    std::vector<std::string> imageNames;
+    std::vector<cv::Mat> keypointsXY;
+    std::vector<std::string> names;
+    loadDescriptors(m_databasePath, descriptors, keypointsXY, names);
+
     bool found = false;
+    std::vector<cv::Mat> newDescriptors;
+    std::vector<cv::Mat> newKeypointsXY;
+    std::vector<std::string> newNames;
 
-    try {
-        loadDescriptors(m_databasePath, descriptors, imageNames);
-
-        std::vector<cv::Mat> newDescriptors;
-        std::vector<std::string> newImageNames;
-
-        for (size_t i = 0; i < imageNames.size(); i++) {
-            if (imageNames[i] != board_id) {
-                newDescriptors.push_back(descriptors[i]);
-                newImageNames.push_back(imageNames[i]);
-            } else {
-                found = true;
-            }
+    for (size_t i = 0; i < names.size(); ++i) {
+        if (names[i] == boardId) {
+            found = true;
+            continue;
         }
-
-        if (found) {
-            saveDescriptors(m_databasePath, newDescriptors, newImageNames);
-        }
-        return found;
-
-    } catch (const cv::Exception& e) {
-        std::cout << "Error while removing image from database: " << e.what() << std::endl;
-        return false;
+        newDescriptors.push_back(i < descriptors.size() ? descriptors[i] : cv::Mat());
+        newKeypointsXY.push_back(i < keypointsXY.size() ? keypointsXY[i] : cv::Mat());
+        newNames.push_back(names[i]);
     }
+
+    if (found) {
+        saveDescriptors(m_databasePath, newDescriptors, newKeypointsXY, newNames);
+    }
+    return found;
 }

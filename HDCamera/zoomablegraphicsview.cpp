@@ -8,6 +8,7 @@
 ZoomableGraphicsView::ZoomableGraphicsView(QWidget *parent)
     : QGraphicsView(parent)
 {
+    // 视图内部固定维护一个 scene 和一张 pixmap，用于显示实时相机画面。
     m_scene = new QGraphicsScene(this);
     setScene(m_scene);
 
@@ -42,12 +43,11 @@ void ZoomableGraphicsView::setImage(const QImage &image)
 
     m_hasImage = true;
 
-    // Fit only on first image or if user hasn't interacted yet.
-    // Continuous frames should not reset user's zoom/pan.
+    // 首帧或用户未手动交互时允许自动适配窗口，连续视频帧不重置缩放和平移。
     if (!m_userInteracted) {
         m_fitOnNextResize = true;
     }
-    // If the source resolution changes while user hasn't interacted, refit.
+    // 如果视频源分辨率变化且用户尚未介入，也重新做一次 fit。
     if (sizeChanged && !m_userInteracted) {
         m_fitOnNextResize = true;
     }
@@ -153,6 +153,7 @@ void ZoomableGraphicsView::updateFitIfNeeded()
         return;
     }
 
+    // 只有明确需要时才 fit，避免实时刷新时不断打断用户查看细节。
     fitInView(m_pixmapItem, Qt::KeepAspectRatio);
     m_fitOnNextResize = false;
 }

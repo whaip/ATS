@@ -238,6 +238,7 @@ bool FrameworkSecurityService::authorize(RuntimeAction action) const
 RuntimeServices::RuntimeServices(QObject *parent)
     : QObject(parent)
 {
+    // 运行服务本身不创建设备，只负责把各个子服务组织成统一生命周期。
 }
 
 void RuntimeServices::setThreadManager(JYThreadManager *manager)
@@ -301,6 +302,7 @@ bool RuntimeServices::startRun(const QString &runId,
                                int timeoutMs,
                                QString *error)
 {
+    // 启动流程：鉴权 -> 检查依赖 -> 解析资源 -> 打开日志 -> 同步启动设备。
     if (!ensureAuthorized(RuntimeAction::Start, error)) {
         emit runtimeError(error ? *error : QString());
         return false;
@@ -392,6 +394,7 @@ bool RuntimeServices::startRun(const QString &runId,
 
 bool RuntimeServices::pauseRun(int timeoutMs, QString *error)
 {
+    // 暂停流程本质上是一次同步停机，但保留本次运行上下文。
     if (!ensureAuthorized(RuntimeAction::Pause, error)) {
         emit runtimeError(error ? *error : QString());
         return false;
@@ -426,6 +429,7 @@ bool RuntimeServices::pauseRun(int timeoutMs, QString *error)
 
 bool RuntimeServices::completeRun(int timeoutMs, QString *error)
 {
+    // 完成流程会确保设备停止，并关闭当前运行会话。
     if (!ensureAuthorized(RuntimeAction::Pause, error)) {
         emit runtimeError(error ? *error : QString());
         return false;
@@ -466,6 +470,7 @@ bool RuntimeServices::completeRun(int timeoutMs, QString *error)
 
 bool RuntimeServices::resumeRun(int timeoutMs, QString *error)
 {
+    // 恢复流程直接重用上一次缓存的设备配置重新同步启动。
     if (!ensureAuthorized(RuntimeAction::Start, error)) {
         emit runtimeError(error ? *error : QString());
         return false;
@@ -500,6 +505,7 @@ bool RuntimeServices::resumeRun(int timeoutMs, QString *error)
 
 bool RuntimeServices::abortRun(QString *error)
 {
+    // 终止流程不要求保留运行状态，直接关闭全部设备并结束会话。
     if (!ensureAuthorized(RuntimeAction::Abort, error)) {
         emit runtimeError(error ? *error : QString());
         return false;
@@ -544,6 +550,7 @@ void RuntimeServices::handleDeviceFault(JYDeviceKind kind, const QString &messag
 
 bool RuntimeServices::captureSnapshot(const QString &tag, QString *error)
 {
+    // 快照由相机站提供，成功后同时写维护日志并通知界面层。
     if (!m_camera) {
         if (error) {
             *error = QStringLiteral("camera station not set");
@@ -566,6 +573,7 @@ bool RuntimeServices::captureSnapshot(const QString &tag, QString *error)
 
 void RuntimeServices::onAlignedBatch(const JYAlignedBatch &batch)
 {
+    // 只在运行态转发批次数据，避免暂停/完成后继续污染上层状态。
     if (m_state != RuntimeState::Running) {
         return;
     }
@@ -618,6 +626,7 @@ bool RuntimeServices::ensureRuntimeReady(QString *error) const
 SystemRuntimeOrchestration::SystemRuntimeOrchestration(QObject *parent)
     : QObject(parent)
 {
+    // 这里集中创建运行编排需要的四类服务，界面层只拿统一入口对象即可。
     m_rms = new ResourceManagementService(this);
     m_mtd = new MaintenanceLogService(this);
     m_frm = new FrameworkSecurityService(this);

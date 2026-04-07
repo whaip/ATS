@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// 多信号示例 TPS 插件，用于组合多路输入输出资源的测试策略。
 class MultiSignalTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

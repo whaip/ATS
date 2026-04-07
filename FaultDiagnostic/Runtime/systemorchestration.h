@@ -15,6 +15,7 @@
 class JYThreadManager;
 class CameraStation;
 
+// 运行层接收到的一条信号需求，最终会映射到具体设备资源。
 struct SignalRequest {
     QString id;
     QString type;
@@ -22,6 +23,7 @@ struct SignalRequest {
     QString unit;
 };
 
+// 一条资源绑定记录，描述某个信号最终落到哪类设备的哪个通道。
 struct ResourceBinding {
     JYDeviceKind kind = JYDeviceKind::PXIe5322;
     int channel = 0;
@@ -29,6 +31,7 @@ struct ResourceBinding {
     QString resourceId;
 };
 
+// 信号类型到实际资源的映射关系。
 struct ResourceMapping {
     QString signalType;
     ResourceBinding binding;
@@ -40,7 +43,9 @@ class ResourceManagementService : public QObject
 public:
     explicit ResourceManagementService(QObject *parent = nullptr);
 
+    // 初始化或替换当前资源映射表。
     void setMappings(const QVector<ResourceMapping> &mappings);
+    // 根据信号请求解析出实际资源绑定。
     bool resolveRequest(const SignalRequest &request, ResourceBinding *binding, QString *error) const;
     QVector<ResourceMapping> mappings() const;
 
@@ -54,9 +59,11 @@ class MaintenanceLogService : public QObject
 public:
     explicit MaintenanceLogService(QObject *parent = nullptr);
 
+    // 打开一次运行的维护日志会话，生成 runtime.jsonl 及关联目录。
     bool openSession(const QString &runId, const QString &boardId, QString *error);
     void closeSession();
 
+    // 记录运行事件、采样批次和图像快照。
     void recordEvent(const QString &type, const QJsonObject &payload = QJsonObject());
     void recordBatch(const JYAlignedBatch &batch);
     void recordImage(const ImageData &image, const QString &tag);
@@ -92,6 +99,7 @@ class FrameworkSecurityService : public QObject
 {
     Q_OBJECT
 public:
+    // 当前操作者上下文，仅做简单权限控制。
     struct UserContext {
         QString userId;
         QString role;
@@ -114,6 +122,7 @@ class RuntimeServices : public QObject
 public:
     explicit RuntimeServices(QObject *parent = nullptr);
 
+    // 注入运行时依赖：设备线程、相机、资源映射、日志和权限。
     void setThreadManager(JYThreadManager *manager);
     void setCameraStation(CameraStation *station);
     void setResourceManager(ResourceManagementService *rms);
@@ -122,6 +131,7 @@ public:
 
     RuntimeState state() const;
 
+    // 控制一次运行的完整生命周期：开始、暂停、完成、恢复、终止。
     bool startRun(const QString &runId,
                   const QString &boardId,
                   const QVector<SignalRequest> &requests,
@@ -135,6 +145,7 @@ public:
     bool resumeRun(int timeoutMs, QString *error);
     bool abortRun(QString *error);
 
+    // 从相机站抓取一帧快照，并可写入维护日志。
     bool captureSnapshot(const QString &tag, QString *error);
 
 signals:
@@ -150,6 +161,7 @@ private:
     void setState(RuntimeState state);
     bool ensureAuthorized(RuntimeAction action, QString *error) const;
     bool ensureRuntimeReady(QString *error) const;
+    // 任一设备进入故障态时，统一转为运行故障并关闭编排。
     void handleDeviceFault(JYDeviceKind kind, const QString &message);
 
     JYThreadManager *m_manager = nullptr;
@@ -177,6 +189,7 @@ class SystemRuntimeOrchestration : public QObject
 public:
     explicit SystemRuntimeOrchestration(QObject *parent = nullptr);
 
+    // 对外暴露四个核心服务，供界面层和流程层协作。
     ResourceManagementService *rms() const;
     MaintenanceLogService *mtd() const;
     FrameworkSecurityService *frm() const;

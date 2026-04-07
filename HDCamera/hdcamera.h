@@ -35,17 +35,21 @@ protected:
     void showEvent(QShowEvent *event) override;
 
 private:
+    // 左侧菜单在主菜单页和相机设置页之间切换。
     void setMenuPage(int index);
+    // 初始化相机选择、分辨率、像素格式和帧率相关控件。
     void initCameraSettingsUi();
     void refreshCameraList();
     void refreshResolutionListForCurrentCamera();
     void refreshPixelFormatListForCurrentSelection();
     void refreshFpsListForCurrentSelection();
+    // 对频繁变更做延迟合并，避免每次切换下拉框都立即重配相机。
     void scheduleApplyCameraSettings();
     void applyCameraSettingsNow();
     void ensureComponentDetectWorker();
     void applyComponentDetectSettings();
     void refreshComponentDetectPreview();
+    // 在原图上叠加元件检测框和 PCB 提取四边形。
     QImage renderComponentDetectOverlay(const QImage &frame,
                                        const QList<CompLabel> &labels,
                                        const QPolygonF &pcbQuad) const;
@@ -65,7 +69,7 @@ private:
     QList<CompLabel> m_lastDetectLabels;
     QPolygonF m_lastDetectQuad;
 
-    // Cached from DirectShow enumeration. comboCamera item data stores the index into this list.
+    // 缓存 DirectShow 能力枚举结果，comboCamera 的 itemData 存的是设备索引。
     QList<QList<DShowCameraUtil::StreamCapability>> m_capabilitiesByDevice;
 };
 

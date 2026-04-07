@@ -27,6 +27,7 @@ DataCaptureCard::DataCaptureCard(QWidget *parent)
     , ui(new Ui::DataCaptureCard)
 {
     ui->setupUi(this);
+    // 波形管理器负责把多设备采样统一整理成适合绘图的数据视图。
     m_waveformManager = new WaveformDataManager(this);
     m_waveformManager->setRetentionSeconds(m_displayRetentionSeconds);
     m_waveformManager->setStoragePointBudget(qMax(1000, m_displayMaxPoints * 6));
@@ -95,6 +96,7 @@ DataCaptureCard::~DataCaptureCard()
 
 void DataCaptureCard::buildLayout()
 {
+    // 将 .ui 中的控件指针接入成员变量，并生成各设备的通道卡片。
     m_plot = ui->plotView;
     m_portScroll = ui->scrollChannels;
     m_portContainer = ui->channelsContainer;
@@ -206,6 +208,7 @@ void DataCaptureCard::initPlotLines()
     if (!m_plot) {
         return;
     }
+    // 绘图窗口以保留时长为基础，后续再按当前勾选通道动态裁剪显示内容。
     m_plot->setDisplayWindowSeconds(m_displayRetentionSeconds);
     if (m_waveformManager) {
         m_waveformManager->setStoragePointBudget(qMax(1000, m_plot->plotAreaWidth() * 6));
@@ -419,6 +422,7 @@ void DataCaptureCard::setJYThreadManager(JYThreadManager *manager)
 {
     m_manager = manager;
     m_useTestData = (m_manager == nullptr);
+    // 接入真实线程管理器后，采集页改为监听 pipeline 的对齐结果，不再使用模拟数据。
     if (m_simTimer) {
         if (m_manager) {
             m_simTimer->stop();
@@ -467,6 +471,8 @@ void DataCaptureCard::onAlignedBatch(const JYAlignedBatch &batch)
     if (m_activeGraphs.isEmpty()) {
         return;
     }
+
+    // 一批对齐数据可能同时包含 5322、5323、8902，不在这里区分来源，统一进入显示链路。
 
     ++m_batchCount;
     m_lastBatchTs = batch.timestampMs;
@@ -535,6 +541,8 @@ void DataCaptureCard::appendPacketToBuffers(JYDeviceKind kind, const JYDataPacke
     if (packet.channelCount <= 0 || packet.data.isEmpty()) {
         return;
     }
+
+    // 原始包是按“采样点 * 通道数”交织存储，这里按通道拆开后续再做窗口裁剪。
 
     auto &buffers = m_captureBuffers[kind];
     if (buffers.size() != packet.channelCount) {

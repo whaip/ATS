@@ -5,6 +5,7 @@
 
 #include "../diagnosticplugininterface.h"
 
+// 开关元件的诊断插件框架，负责消费采样数据并输出故障报告。
 class SwitchDiagnosticPlugin : public QObject, public DiagnosticPluginInterface
 {
     Q_OBJECT

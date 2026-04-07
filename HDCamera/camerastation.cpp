@@ -24,6 +24,7 @@ CameraStation::CameraStation(QObject *parent)
 {
     qRegisterMetaType<ImageData>("ImageData");
     qRegisterMetaType<CameraStation::Config>("CameraStation::Config");
+    // CameraStation 是全局单例采集站，多个界面客户端共享同一条采集链路。
 }
 
 CameraStation::~CameraStation()
@@ -124,6 +125,7 @@ ImageData CameraStation::toImageData(const cv::Mat &bgrOrGray)
 
 bool CameraStation::openCaptureLocked(const Config &cfg, QString *detailOut)
 {
+    // 打开设备并按目标参数配置，同时做一次短探测确保该模式真的能出图。
     if (m_capture.isOpened()) {
         m_capture.release();
     }
@@ -212,8 +214,9 @@ void CameraStation::runLoop()
 
     cv::Mat frame;
 
+    // 单例线程持续采集，同时在循环中处理最新的配置请求。
     while (true) {
-        // Apply pending config (coalesced).
+        // 配置请求只保留最后一次，避免快速切换下拉框时反复重开设备。
         Config cfg;
         bool doConfig = false;
         bool stop = false;

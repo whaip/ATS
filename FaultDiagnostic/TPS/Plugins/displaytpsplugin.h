@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// 显示器件的 TPS 插件框架，负责定义策略参数和资源需求。
 class DisplayTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT

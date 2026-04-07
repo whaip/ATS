@@ -5,6 +5,7 @@
 
 #include "../Core/tpsplugininterface.h"
 
+// 连接器元件的 TPS 插件框架，负责定义策略参数和资源需求。
 class ConnectorTpsPlugin : public QObject, public TPSPluginInterface
 {
     Q_OBJECT
