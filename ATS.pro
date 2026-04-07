@@ -20,7 +20,7 @@ exists(D:/QT/6.7.3/msvc2022_64/plugins/sqldrivers/qsqlite.dll) {
 
 SOURCES += \
     BoardManager/boardmanager.cpp \
-    BoardManager/featuredatabaserebuilder.cpp \
+    BoardManager/roiembeddingmatcher.cpp \
     ComponentsDetect/componentsdetect.cpp \
     ComponentsDetect/yolomodel.cpp \
     ComponentsDetect/yolostation.cpp \
@@ -84,12 +84,11 @@ SOURCES += \
     tool/lebalitemmanager.cpp \
     tool/ch340.cpp \
     tool/pcb_extract.cpp \
-    tool/pcbextract.cpp \
-    tool/siftmatcher.cpp
+    tool/pcbextract.cpp
 
 HEADERS += \
     BoardManager/boardmanager.h \
-    BoardManager/featuredatabaserebuilder.h \
+    BoardManager/roiembeddingmatcher.h \
     ComponentsDetect/componentsdetect.h \
     ComponentsDetect/componenttypes.h \
     ComponentsDetect/yolomodel.h \
@@ -164,8 +163,7 @@ HEADERS += \
     tool/lebalitemmanager.h \
     tool/ch340.h \
     tool/pcb_extract.h \
-    tool/pcbextract.h \
-    tool/siftmatcher.h
+    tool/pcbextract.h
 
 SOURCES += $$DIAGNOSTIC_PLUGIN_SOURCES $$TPS_PLUGIN_SOURCES
 HEADERS += $$DIAGNOSTIC_PLUGIN_HEADERS $$TPS_PLUGIN_HEADERS

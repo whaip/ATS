@@ -9,7 +9,7 @@
 #include "../tpsparamservice.h"
 #include "../tool/lebalitemmanager.h"
 #include "../tool/pcbextract.h"
-#include "../tool/siftmatcher.h"
+#include "roiembeddingmatcher.h"
 #include "../logger.h"
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -29,7 +29,10 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QProcess>
+#include <QPushButton>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -76,12 +79,61 @@ QImage loadImageByDbPath(const QString &imagePath, const QString &databasePath)
     return QImage(imageInfo.absoluteFilePath());
 }
 
-QString resolveDescriptorDbPath(const QString &boardDbPath)
+QString resolveEmbeddingDbPath(const QString &boardDbPath)
 {
     if (boardDbPath.trimmed().isEmpty()) {
-        return QStringLiteral("descriptors_database.yml");
+        return QStringLiteral("embeddings_database.yml");
     }
-    return QFileInfo(boardDbPath).dir().filePath(QStringLiteral("descriptors_database.yml"));
+    return QFileInfo(boardDbPath).dir().filePath(QStringLiteral("embeddings_database.yml"));
+}
+
+QStringList candidatePythonExecutables()
+{
+    QStringList candidates;
+
+    const QString envPython = qEnvironmentVariable("ATS_PYTHON");
+    if (!envPython.trimmed().isEmpty()) {
+        candidates << QDir::fromNativeSeparators(envPython.trimmed());
+    }
+
+    const QString systemPython = QStandardPaths::findExecutable(QStringLiteral("python"));
+    if (!systemPython.isEmpty()) {
+        candidates << QDir::fromNativeSeparators(systemPython);
+    }
+
+    const QString condaPython = QStringLiteral("D:/ProgramData/anaconda3/python.exe");
+    const QString ednetPython = QStringLiteral("D:/ProgramData/anaconda3/envs/EDNet/python.exe");
+    if (QFileInfo::exists(condaPython)) {
+        candidates << condaPython;
+    }
+    if (QFileInfo::exists(ednetPython)) {
+        candidates << ednetPython;
+    }
+
+    candidates.removeDuplicates();
+    return candidates;
+}
+
+QString resolvePythonExecutable(QStringList *triedCandidates = nullptr)
+{
+    const QStringList candidates = candidatePythonExecutables();
+    if (triedCandidates) {
+        *triedCandidates = candidates;
+    }
+
+    for (const QString &candidate : candidates) {
+        if (candidate.contains(QLatin1Char('/')) || candidate.contains(QLatin1Char('\\'))) {
+            if (QFileInfo::exists(candidate)) {
+                return candidate;
+            }
+        } else {
+            const QString resolved = QStandardPaths::findExecutable(candidate);
+            if (!resolved.isEmpty()) {
+                return resolved;
+            }
+        }
+    }
+    return {};
 }
 }
 
@@ -144,6 +196,29 @@ QString BoardManager::resolveImagePath(const QString &imagePath) const
     return imageInfo.absoluteFilePath();
 }
 
+QString BoardManager::resolveEmbeddingModelPath() const
+{
+    const QString modelDir = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("model"));
+    QDir().mkpath(modelDir);
+    return QDir(modelDir).filePath(QStringLiteral("board_embedding.onnx"));
+}
+
+QString BoardManager::resolveEmbeddingTrainingScriptPath() const
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    QDir probeDir(appDir);
+    for (int depth = 0; depth < 8; ++depth) {
+        const QString candidate = probeDir.filePath(QStringLiteral("BoardManager/EmbeddingTraining/train_board_embedding.py"));
+        if (QFileInfo::exists(candidate)) {
+            return QDir::cleanPath(candidate);
+        }
+        if (!probeDir.cdUp()) {
+            break;
+        }
+    }
+    return QDir(appDir).filePath(QStringLiteral("BoardManager/EmbeddingTraining/train_board_embedding.py"));
+}
+
 void BoardManager::setupUiElements()
 {
     if (ui->tableBoards) {
@@ -157,6 +232,12 @@ void BoardManager::setupUiElements()
     if (ui->buttonEditPlanBindings) {
         ui->buttonEditPlanBindings->show();
         ui->buttonEditPlanBindings->setText(tr("开始测试"));
+    }
+
+    if (!m_trainEmbeddingButton && ui->horizontalLayout_boardActions) {
+        m_trainEmbeddingButton = new QPushButton(tr("训练识别模型"), this);
+        m_trainEmbeddingButton->setObjectName(QStringLiteral("buttonTrainEmbeddingModel"));
+        ui->horizontalLayout_boardActions->addWidget(m_trainEmbeddingButton);
     }
 
     if (ui->labelEditorContainer) {
@@ -218,7 +299,7 @@ BoardManager::BoardEntry BoardManager::buildEntryFromRepositoryBoard(int index) 
 void BoardManager::loadBoardsFromStorage()
 {
     m_databasePath = resolveDatabasePath();
-    SIFT_MATCHER->setDatabasePath(resolveDescriptorDbPath(m_databasePath).toStdString());
+    ROI_EMBEDDING_MATCHER->setDatabasePath(resolveEmbeddingDbPath(m_databasePath).toStdString());
 
     QFileInfo dbInfo(m_databasePath);
     if (!dbInfo.exists()) {
@@ -240,6 +321,33 @@ void BoardManager::loadBoardsFromStorage()
             ui->textOtherInfo->setText(errorMessage);
         }
         return;
+    }
+
+    const QString embeddingDbPath = resolveEmbeddingDbPath(m_databasePath);
+    QFileInfo embeddingInfo(embeddingDbPath);
+    if (!embeddingInfo.exists() || embeddingInfo.size() <= 0) {
+        std::vector<std::string> ids;
+        std::vector<cv::Mat> images;
+        ids.reserve(static_cast<size_t>(m_repository->boardCount()));
+        images.reserve(static_cast<size_t>(m_repository->boardCount()));
+
+        for (int i = 0; i < m_repository->boardCount(); ++i) {
+            const BoardRecord *board = m_repository->boardAt(i);
+            if (!board) {
+                continue;
+            }
+            const QImage image = loadImageByDbPath(board->imagePath, m_databasePath);
+            const cv::Mat imageBgr = qimageToBgrMat(image);
+            if (imageBgr.empty()) {
+                continue;
+            }
+            ids.push_back(board->boardId.toStdString());
+            images.push_back(imageBgr);
+        }
+
+        if (!ids.empty()) {
+            ROI_EMBEDDING_MATCHER->appendToDatabase(ids, images, false);
+        }
     }
 
     if (m_labelEditor) {
@@ -279,12 +387,153 @@ void BoardManager::setupConnections()
     if (ui->buttonRefreshList) {
         connect(ui->buttonRefreshList, &QPushButton::clicked, this, &BoardManager::onRefreshBoards);
     }
+    if (m_trainEmbeddingButton) {
+        connect(m_trainEmbeddingButton, &QPushButton::clicked, this, &BoardManager::onTrainEmbeddingModel);
+    }
     if (ui->buttonEditPlanBindings) {
         connect(ui->buttonEditPlanBindings, &QPushButton::clicked, this, &BoardManager::onStartSelectedTest);
     }
     if (ui->tableBoards) {
         connect(ui->tableBoards, &QTableWidget::itemSelectionChanged, this, &BoardManager::onBoardSelectionChanged);
     }
+}
+
+void BoardManager::onTrainEmbeddingModel()
+{
+    if (m_embeddingTrainingProcess) {
+        QMessageBox::information(this, tr("训练识别模型"), tr("训练任务正在后台执行。"));
+        return;
+    }
+
+    const QString scriptPath = resolveEmbeddingTrainingScriptPath();
+    if (!QFileInfo::exists(scriptPath)) {
+        QMessageBox::warning(this,
+                             tr("训练识别模型"),
+                             tr("未找到训练脚本：%1").arg(QDir::toNativeSeparators(scriptPath)));
+        return;
+    }
+
+    if (!QFileInfo::exists(m_databasePath)) {
+        QMessageBox::warning(this,
+                             tr("训练识别模型"),
+                             tr("未找到板卡数据库：%1").arg(QDir::toNativeSeparators(m_databasePath)));
+        return;
+    }
+
+    QStringList triedPythonCandidates;
+    const QString pythonProgram = resolvePythonExecutable(&triedPythonCandidates);
+    if (pythonProgram.isEmpty()) {
+        QMessageBox::warning(this,
+                             tr("è®­ç»ƒè¯†åˆ«æ¨¡åž‹"),
+                             tr("æœªæ‰¾åˆ°å¯ç”¨çš„ Python è§£é‡Šå™¨ã€‚\nå·²å°è¯•ï¼š\n%1")
+                                 .arg(triedPythonCandidates.join(QStringLiteral("\n"))));
+        return;
+    }
+    const QString modelPath = resolveEmbeddingModelPath();
+    const QString embeddingDbPath = resolveEmbeddingDbPath(m_databasePath);
+    QDir().mkpath(QFileInfo(embeddingDbPath).dir().absolutePath());
+
+    m_embeddingTrainingProcess = new QProcess(this);
+    m_embeddingTrainingProcess->setWorkingDirectory(QFileInfo(scriptPath).absolutePath());
+    m_embeddingTrainingProcess->setProcessChannelMode(QProcess::SeparateChannels);
+
+    connect(m_embeddingTrainingProcess, &QProcess::readyReadStandardOutput,
+            this, &BoardManager::onEmbeddingTrainingOutput);
+    connect(m_embeddingTrainingProcess, &QProcess::readyReadStandardError,
+            this, &BoardManager::onEmbeddingTrainingOutput);
+    connect(m_embeddingTrainingProcess,
+            qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this,
+            &BoardManager::onEmbeddingTrainingFinished);
+
+    const QStringList arguments = {
+        scriptPath,
+        QStringLiteral("--boards-json"), m_databasePath,
+        QStringLiteral("--output-model"), modelPath,
+        QStringLiteral("--output-db"), embeddingDbPath
+    };
+
+    if (ui->textOtherInfo) {
+        ui->textOtherInfo->append(QStringLiteral("[embedding-train] python=%1").arg(pythonProgram));
+        ui->textOtherInfo->append(QStringLiteral("[embedding-train] script=%1").arg(scriptPath));
+        ui->textOtherInfo->append(QStringLiteral("[embedding-train] model=%1").arg(modelPath));
+        ui->textOtherInfo->append(QStringLiteral("[embedding-train] db=%1").arg(embeddingDbPath));
+    }
+
+    if (m_trainEmbeddingButton) {
+        m_trainEmbeddingButton->setEnabled(false);
+        m_trainEmbeddingButton->setText(tr("训练中..."));
+    }
+
+    m_embeddingTrainingProcess->start(pythonProgram, arguments);
+    if (!m_embeddingTrainingProcess->waitForStarted(3000)) {
+        const QString errorText = m_embeddingTrainingProcess->errorString();
+        m_embeddingTrainingProcess->deleteLater();
+        m_embeddingTrainingProcess = nullptr;
+        if (m_trainEmbeddingButton) {
+            m_trainEmbeddingButton->setEnabled(true);
+            m_trainEmbeddingButton->setText(tr("训练识别模型"));
+        }
+        QMessageBox::warning(this,
+                             tr("训练识别模型"),
+                             tr("启动训练进程失败：%1").arg(errorText));
+    }
+}
+
+void BoardManager::onEmbeddingTrainingOutput()
+{
+    if (!m_embeddingTrainingProcess || !ui->textOtherInfo) {
+        return;
+    }
+
+    const QString stdoutText = QString::fromLocal8Bit(m_embeddingTrainingProcess->readAllStandardOutput()).trimmed();
+    const QString stderrText = QString::fromLocal8Bit(m_embeddingTrainingProcess->readAllStandardError()).trimmed();
+    if (!stdoutText.isEmpty()) {
+        ui->textOtherInfo->append(stdoutText);
+    }
+    if (!stderrText.isEmpty()) {
+        ui->textOtherInfo->append(stderrText);
+    }
+}
+
+void BoardManager::onEmbeddingTrainingFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    QProcess *finishedProcess = m_embeddingTrainingProcess;
+    m_embeddingTrainingProcess = nullptr;
+
+    if (m_trainEmbeddingButton) {
+        m_trainEmbeddingButton->setEnabled(true);
+        m_trainEmbeddingButton->setText(tr("训练识别模型"));
+    }
+
+    if (finishedProcess) {
+        onEmbeddingTrainingOutput();
+    }
+
+    const bool success = finishedProcess
+        && exitStatus == QProcess::NormalExit
+        && exitCode == 0
+        && QFileInfo::exists(resolveEmbeddingModelPath())
+        && QFileInfo::exists(resolveEmbeddingDbPath(m_databasePath));
+
+    if (finishedProcess) {
+        finishedProcess->deleteLater();
+    }
+
+    if (!success) {
+        QMessageBox::warning(this, tr("训练识别模型"), tr("训练失败，请检查输出日志。"));
+        return;
+    }
+
+    ROI_EMBEDDING_MATCHER->setModelPath(resolveEmbeddingModelPath());
+    ROI_EMBEDDING_MATCHER->setDatabasePath(resolveEmbeddingDbPath(m_databasePath).toStdString());
+
+    if (ui->textOtherInfo) {
+        ui->textOtherInfo->append(QStringLiteral("[embedding-train] 模型和向量库已更新"));
+    }
+    QMessageBox::information(this,
+                             tr("训练识别模型"),
+                             tr("训练完成，board_embedding.onnx 和 embeddings_database.yml 已更新。"));
 }
 
 bool BoardManager::captureImageFromCamera(QImage *capturedImage)
@@ -458,7 +707,7 @@ void BoardManager::onAutoRecognizeBoard()
         return;
     }
 
-    const auto matchResults = SIFT_MATCHER->matchImage(matchInputBgr, roiIsManualCrop);
+    const auto matchResults = ROI_EMBEDDING_MATCHER->matchImage(matchInputBgr, roiIsManualCrop);
     Logger::log(QStringLiteral("BoardManager SIFT match complete: candidateCount=%1")
                     .arg(matchResults.size()),
                 Logger::Level::Info);
@@ -467,7 +716,7 @@ void BoardManager::onAutoRecognizeBoard()
         return;
     }
 
-    QVector<QPair<int, SiftMatcher::MatchResult>> dbMatchedResults;
+    QVector<QPair<int, RoiEmbeddingMatcher::MatchResult>> dbMatchedResults;
     for (const auto &result : matchResults) {
         const QString boardId = QString::fromStdString(result.boardId).trimmed();
         if (boardId.isEmpty()) {
@@ -495,7 +744,7 @@ void BoardManager::onAutoRecognizeBoard()
     }
 
     int matchedRepoIndex = dbMatchedResults.first().first;
-    SiftMatcher::MatchResult matchedResult = dbMatchedResults.first().second;
+    RoiEmbeddingMatcher::MatchResult matchedResult = dbMatchedResults.first().second;
 
     if (dbMatchedResults.size() > 1) {
         Logger::log(QStringLiteral("BoardManager multiple candidates: count=%1")
@@ -525,7 +774,8 @@ void BoardManager::onAutoRecognizeBoard()
                                      .arg(boardName)
                                      .arg(boardId)
                                      .arg(QString::number(candidate.matchScore, 'f', 2))
-                                     .arg(candidate.goodMatchCount);
+                                     .arg(candidate.templateCount)
+                                     .arg(candidate.bestRotation);
 
             auto *item = new QListWidgetItem(text, candidateList);
             item->setData(Qt::UserRole, i);
@@ -575,14 +825,16 @@ void BoardManager::onAutoRecognizeBoard()
                     .arg(matchedRepoIndex)
                     .arg(QString::fromStdString(matchedResult.boardId))
                     .arg(QString::number(matchedResult.matchScore, 'f', 2))
-                    .arg(matchedResult.goodMatchCount),
+                    .arg(matchedResult.templateCount)
+                    .arg(matchedResult.bestRotation),
                 Logger::Level::Info);
 
     if (ui->textOtherInfo && matchedRepoIndex >= 0 && matchedRepoIndex < m_boards.size()) {
         const QString summary = QStringLiteral("\n识别结果：%1\n匹配分数：%2\n有效特征点：%3\n候选数量：%4")
                                     .arg(QString::fromStdString(matchedResult.boardId))
                                     .arg(QString::number(matchedResult.matchScore, 'f', 2))
-                                    .arg(matchedResult.goodMatchCount)
+                                    .arg(matchedResult.templateCount)
+                                    .arg(matchedResult.bestRotation)
                                     .arg(dbMatchedResults.size());
         ui->textOtherInfo->setText(ui->textOtherInfo->toPlainText() + summary);
     }
@@ -974,7 +1226,7 @@ void BoardManager::onNewBoard()
 
     const std::vector<std::string> ids = {board.boardId.toStdString()};
     const std::vector<cv::Mat> images = {featureBgr};
-    SIFT_MATCHER->appendToDatabase(ids, images, featureImageIsPcbCrop);
+    ROI_EMBEDDING_MATCHER->appendToDatabase(ids, images, featureImageIsPcbCrop);
 
     loadBoardsFromStorage();
     populateBoardTable(ui->lineEditSearch ? ui->lineEditSearch->text() : QString());
@@ -1000,7 +1252,7 @@ void BoardManager::onDeleteBoard()
         return;
     }
 
-    SIFT_MATCHER->removeFromDatabase(board->boardId.toStdString());
+    ROI_EMBEDDING_MATCHER->removeFromDatabase(board->boardId.toStdString());
 
     {
         TpsParamService tpsParamService;

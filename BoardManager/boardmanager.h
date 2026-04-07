@@ -2,6 +2,7 @@
 #define BOARDMANAGER_H
 
 #include <QImage>
+#include <QProcess>
 #include <QString>
 #include <QVector>
 #include <QWidget>
@@ -15,6 +16,7 @@ class BoardManager;
 }
 
 class QLabel;
+class QPushButton;
 class QResizeEvent;
 class LebalItemManager;
 
@@ -44,6 +46,9 @@ private slots:
     void onStartSelectedTest();
     void onBoardSelectionChanged();
     void onLabelsChanged(const QList<CompLabel> &labels);
+    void onTrainEmbeddingModel();
+    void onEmbeddingTrainingOutput();
+    void onEmbeddingTrainingFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
 private:
     struct BoardEntry {
@@ -58,6 +63,8 @@ private:
 
     QString resolveDatabasePath() const;
     QString resolveImagePath(const QString &imagePath) const;
+    QString resolveEmbeddingModelPath() const;
+    QString resolveEmbeddingTrainingScriptPath() const;
     void setupUiElements();
     void setupConnections();
     void populateBoardTable(const QString &filterText = QString());
@@ -80,6 +87,8 @@ private:
     BoardsRepository *m_repository = nullptr;
     bool m_loadingBoard = false;
     QString m_databasePath;
+    QPushButton *m_trainEmbeddingButton = nullptr;
+    QProcess *m_embeddingTrainingProcess = nullptr;
 };
 
 #endif // BOARDMANAGER_H
