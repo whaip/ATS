@@ -5,7 +5,7 @@
 ## 输入
 
 - 板卡数据库：`board_db/boards.json`
-- 板卡图像：`board_db/images`
+- 板卡图像目录：`board_db/images`
 
 训练脚本会根据 `boards.json` 中的 `imagePath` 自动读取图像，并先做 ROI 提取。
 
@@ -19,7 +19,7 @@
 主程序中的“训练识别模型”按钮会在后台启动：
 
 ```powershell
-python BoardManager/EmbeddingTraining/train_board_embedding.py --boards-json ... --output-model ... --output-db ...
+python scripts/embedding_training/train_board_embedding.py --boards-json ... --output-model ... --output-db ...
 ```
 
 如果需要指定 Python 解释器，可设置环境变量：
@@ -35,4 +35,3 @@ $env:ATS_PYTHON="D:\ProgramData\anaconda3\python.exe"
 - `opencv-python`
 - `numpy`
 - `onnx`
-

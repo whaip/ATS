@@ -186,6 +186,10 @@ FORMS += \
     tool/lebalitemmanager.ui \
     tool/pcbextract.ui
 
+DISTFILES += \
+    BoardManager/EmbeddingTraining/train_board_embedding.py \
+    BoardManager/EmbeddingTraining/README.md
+
 RESOURCES += \
     resources.qrc
 
@@ -203,12 +207,16 @@ win32 {
         DESTDIR = $$PWD/build/release
     }
 
-    # 复制必要的DLL文件
+    # 复制必要的文件
     QMAKE_POST_LINK += $$quote(xcopy /Y /Q $$shell_path($$PWD/bin/*.dll) $$shell_path($$DESTDIR) > nul$$escape_expand(\n\t))
     QMAKE_POST_LINK += $$quote(copy /Y $$shell_path($$PWD/build/release/app.ico) $$shell_path($$DESTDIR\\app.ico) > nul$$escape_expand(\n\t))
     QMAKE_POST_LINK += $$quote(copy /Y $$shell_path($$PWD/build/release/ATS.png) $$shell_path($$DESTDIR\\ATS.png) > nul$$escape_expand(\n\t))
     QMAKE_POST_LINK += $$quote(if not exist $$shell_path($$DESTDIR\\model) mkdir $$shell_path($$DESTDIR\\model)$$escape_expand(\n\t))
     QMAKE_POST_LINK += $$quote(xcopy /Y /Q $$shell_path($$PWD/ComponentsDetect/model/*) $$shell_path($$DESTDIR\\model\\) > nul$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(if not exist $$shell_path($$DESTDIR\\scripts) mkdir $$shell_path($$DESTDIR\\scripts)$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(if not exist $$shell_path($$DESTDIR\\scripts\\embedding_training) mkdir $$shell_path($$DESTDIR\\scripts\\embedding_training)$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(copy /Y $$shell_path($$PWD\\BoardManager\\EmbeddingTraining\\train_board_embedding.py) $$shell_path($$DESTDIR\\scripts\\embedding_training\\train_board_embedding.py) > nul$$escape_expand(\n\t))
+    QMAKE_POST_LINK += $$quote(copy /Y $$shell_path($$PWD\\BoardManager\\EmbeddingTraining\\README.md) $$shell_path($$DESTDIR\\scripts\\embedding_training\\README.md) > nul$$escape_expand(\n\t))
     QMAKE_POST_LINK += $$quote(if not exist $$shell_path($$DESTDIR\\sqldrivers) mkdir $$shell_path($$DESTDIR\\sqldrivers)$$escape_expand(\n\t))
     QMAKE_POST_LINK += $$quote(copy /Y $$shell_path($$QT_SQLITE_PLUGIN_DIR\\qsqlite.dll) $$shell_path($$DESTDIR\\sqldrivers\\qsqlite.dll) > nul$$escape_expand(\n\t))
 

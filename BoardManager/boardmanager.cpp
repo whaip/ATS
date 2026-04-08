@@ -205,18 +205,8 @@ QString BoardManager::resolveEmbeddingModelPath() const
 
 QString BoardManager::resolveEmbeddingTrainingScriptPath() const
 {
-    const QString appDir = QCoreApplication::applicationDirPath();
-    QDir probeDir(appDir);
-    for (int depth = 0; depth < 8; ++depth) {
-        const QString candidate = probeDir.filePath(QStringLiteral("BoardManager/EmbeddingTraining/train_board_embedding.py"));
-        if (QFileInfo::exists(candidate)) {
-            return QDir::cleanPath(candidate);
-        }
-        if (!probeDir.cdUp()) {
-            break;
-        }
-    }
-    return QDir(appDir).filePath(QStringLiteral("BoardManager/EmbeddingTraining/train_board_embedding.py"));
+    return QDir(QCoreApplication::applicationDirPath())
+        .filePath(QStringLiteral("scripts/embedding_training/train_board_embedding.py"));
 }
 
 void BoardManager::setupUiElements()
@@ -1081,6 +1071,18 @@ void BoardManager::onNewBoard()
         return;
     }
 
+    struct PendingImageCleanup
+    {
+        QString path;
+        bool active = true;
+        ~PendingImageCleanup()
+        {
+            if (active && !path.trimmed().isEmpty()) {
+                QFile::remove(path);
+            }
+        }
+    } pendingImageCleanup{savedPath, true};
+
     QImage pcbImage = sourceImage;
     QRectF pcbRect;
     bool useManualCrop = true;
@@ -1224,6 +1226,8 @@ void BoardManager::onNewBoard()
         return;
     }
 
+    pendingImageCleanup.active = false;
+
     const std::vector<std::string> ids = {board.boardId.toStdString()};
     const std::vector<cv::Mat> images = {featureBgr};
     ROI_EMBEDDING_MATCHER->appendToDatabase(ids, images, featureImageIsPcbCrop);
@@ -1244,6 +1248,7 @@ void BoardManager::onDeleteBoard()
     if (!board) {
         return;
     }
+    const QString imagePath = resolveImagePath(board->imagePath);
 
     const auto reply = QMessageBox::question(this,
                                              tr("删除板卡"),
@@ -1273,6 +1278,10 @@ void BoardManager::onDeleteBoard()
     if (!m_repository->save(&errorMessage)) {
         QMessageBox::warning(this, tr("删除板卡"), errorMessage);
         return;
+    }
+
+    if (!imagePath.trimmed().isEmpty()) {
+        QFile::remove(imagePath);
     }
 
     loadBoardsFromStorage();

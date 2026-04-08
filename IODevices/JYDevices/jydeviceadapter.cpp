@@ -328,6 +328,12 @@ public:
             return false;
         }
 
+        if (JY5710_SetDeviceStatusLed(m_handle, true, 10) != 0) {
+            if (error) *error = QStringLiteral("JY5710_SetDeviceStatusLed failed");
+            close(nullptr);
+            return false;
+        }
+
         const int samples = static_cast<int>(std::ceil(m_cfg.sampleRate));
         if (samples <= 0) {
             if (error) *error = QStringLiteral("invalid sample rate");
