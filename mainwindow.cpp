@@ -18,6 +18,7 @@
 #include "FaultDiagnostic/UI/faultdiagnostic.h"
 #include "FaultDiagnostic/UI/configurationwindow.h"
 #include "FaultDiagnostic/TaskLogging/tasklogstatisticspage.h"
+#include "FaultDiagnostic/RuntimeRecords/runtimerecordspage.h"
 #include "FaultDiagnostic/Core/testsequencemanager.h"
 #include "BoardManager/boardmanager.h"
 #include <QHeaderView>
@@ -35,6 +36,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QSplitter>
 #include <QStackedWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -147,6 +149,88 @@ QString resolveExistingPath(const QString &relativePath)
     return QDir::cleanPath(candidates.first());
 }
 
+QString loadUtf8TextFile(const QString &relativePath, const QString &fallbackTitle)
+{
+    const QString filePath = resolveExistingPath(relativePath);
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return QStringLiteral("# %1\n\n未找到文件：`%2`")
+            .arg(fallbackTitle, QDir::toNativeSeparators(filePath));
+    }
+    return QString::fromUtf8(file.readAll());
+}
+
+QString projectInfoMarkdown()
+{
+    const QString projectInfo = loadUtf8TextFile(QStringLiteral("Docs/project_info.md"),
+                                                 QStringLiteral("项目概述"));
+    const QString softwareArch = loadUtf8TextFile(QStringLiteral("Docs/software_architecture.md"),
+                                                  QStringLiteral("软件架构"));
+    return projectInfo + QStringLiteral("\n\n---\n\n") + softwareArch;
+}
+
+void configureLogTable(QTableWidget *table)
+{
+    if (!table) {
+        return;
+    }
+    table->setColumnCount(3);
+    table->setHorizontalHeaderLabels({QStringLiteral("时间"),
+                                      QStringLiteral("级别"),
+                                      QStringLiteral("消息")});
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setAlternatingRowColors(true);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setShowGrid(true);
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->verticalHeader()->setVisible(false);
+    table->setColumnWidth(0, 160);
+    table->setColumnWidth(1, 90);
+}
+
+void appendLogRow(QTableWidget *table,
+                  const QString &time,
+                  const QString &level,
+                  const QString &message)
+{
+    if (!table) {
+        return;
+    }
+    const int row = table->rowCount();
+    table->insertRow(row);
+    table->setItem(row, 0, new QTableWidgetItem(time));
+    table->setItem(row, 1, new QTableWidgetItem(level));
+    table->setItem(row, 2, new QTableWidgetItem(message));
+    table->scrollToBottom();
+}
+
+void copyLogRows(QTableWidget *source, QTableWidget *target)
+{
+    if (!source || !target) {
+        return;
+    }
+    target->setRowCount(0);
+    for (int row = 0; row < source->rowCount(); ++row) {
+        appendLogRow(target,
+                     source->item(row, 0) ? source->item(row, 0)->text() : QString(),
+                     source->item(row, 1) ? source->item(row, 1)->text() : QString(),
+                     source->item(row, 2) ? source->item(row, 2)->text() : QString());
+    }
+}
+
+QString logDetailMarkdown(const QString &time,
+                          const QString &level,
+                          const QString &message)
+{
+    return QStringLiteral("# 日志详情\n\n"
+                          "- 时间：`%1`\n"
+                          "- 级别：`%2`\n\n"
+                          "## 消息\n\n"
+                          "```text\n%3\n```")
+        .arg(time, level, message);
+}
+
 DeviceManualInfo deviceManualInfo(const QString &deviceKey)
 {
     if (deviceKey == QStringLiteral("JY5711")) {
@@ -177,6 +261,15 @@ DeviceManualInfo deviceManualInfo(const QString &deviceKey)
     info.title = QStringLiteral("JY8902 设备详情");
     info.manualPath = QStringLiteral("D:/FaultDetect/Program/FaultDetect/JY-8902 Specs and Manual_EN.pdf");
     info.summaryPath = QStringLiteral("Docs/DeviceManualSummaries/jy8902.md");
+    return info;
+}
+
+DeviceManualInfo projectManualInfo()
+{
+    DeviceManualInfo info;
+    info.title = QStringLiteral("项目信息");
+    info.manualPath = QStringLiteral("D:/FaultDetect/Program/FaultDetect/技术方案-2406.pdf");
+    info.summaryPath = QStringLiteral("Docs/project_info.md");
     return info;
 }
 
@@ -348,6 +441,30 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    if (ui->tabErrorLog) {
+        ui->tabErrorLog->setText(QStringLiteral("错误日志"));
+    }
+    if (ui->tabBoardManager) {
+        ui->tabBoardManager->setText(QStringLiteral("板卡管理"));
+    }
+    if (ui->tabProjectInfo) {
+        ui->tabProjectInfo->setText(QStringLiteral("项目信息"));
+    }
+    if (ui->tabStatistics) {
+        ui->tabStatistics->setText(QStringLiteral("统计结果"));
+    }
+    if (ui->tabFlagRule) {
+        ui->tabFlagRule->setText(QStringLiteral("运行记录"));
+    }
+    if (ui->logTable) {
+        configureLogTable(ui->logTable);
+    }
+    if (ui->contentSplitter) {
+        ui->contentSplitter->setStretchFactor(0, 4);
+        ui->contentSplitter->setStretchFactor(1, 1);
+        ui->contentSplitter->setSizes(QList<int>{980, 260});
+    }
 
     if (qApp) {
         connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
@@ -610,6 +727,87 @@ MainWindow::MainWindow(QWidget *parent)
             ui->labelPageInfo->setText(QStringLiteral("共 %1 页").arg(ui->pagesStack->count()));
         }
     }
+
+    auto ensureProjectInfoPage = [this]() {
+        if (m_projectInfoPage) {
+            if (m_projectInfoBrowser) {
+                const DeviceManualInfo info = projectManualInfo();
+                m_projectInfoBrowser->setMarkdown(QStringLiteral("**项目方案文件：** `%1`\n\n%2")
+                                                     .arg(QDir::toNativeSeparators(info.manualPath),
+                                                          projectInfoMarkdown()));
+            }
+            return;
+        }
+
+        const DeviceManualInfo info = projectManualInfo();
+        m_projectInfoPage = new QWidget();
+        auto *layout = new QVBoxLayout(m_projectInfoPage);
+        layout->setContentsMargins(12, 12, 12, 12);
+        layout->setSpacing(8);
+
+        auto *openButton = new QPushButton(QStringLiteral("打开项目方案"), m_projectInfoPage);
+        layout->addWidget(openButton, 0, Qt::AlignLeft);
+
+        m_projectInfoBrowser = new QTextBrowser(m_projectInfoPage);
+        m_projectInfoBrowser->setOpenExternalLinks(true);
+        m_projectInfoBrowser->setMarkdown(QStringLiteral("**项目方案文件：** `%1`\n\n%2")
+                                             .arg(QDir::toNativeSeparators(info.manualPath),
+                                                  projectInfoMarkdown()));
+        layout->addWidget(m_projectInfoBrowser);
+
+        connect(openButton, &QPushButton::clicked, this, [this, info]() {
+            if (!QDesktopServices::openUrl(QUrl::fromLocalFile(info.manualPath))) {
+                QMessageBox::warning(this,
+                                     QStringLiteral("打开失败"),
+                                     QStringLiteral("无法打开项目方案：%1")
+                                         .arg(QDir::toNativeSeparators(info.manualPath)));
+            }
+        });
+
+        m_projectInfoPageIndex = addPage(m_projectInfoPage, QStringLiteral("项目信息"), false);
+    };
+
+    auto ensureErrorLogPage = [this]() {
+        if (m_errorLogPage) {
+            return;
+        }
+
+        m_errorLogPage = new QWidget();
+        auto *layout = new QVBoxLayout(m_errorLogPage);
+        layout->setContentsMargins(12, 12, 12, 12);
+        layout->setSpacing(8);
+
+        auto *splitter = new QSplitter(Qt::Vertical, m_errorLogPage);
+        m_errorLogPageTable = new QTableWidget(splitter);
+        configureLogTable(m_errorLogPageTable);
+        copyLogRows(ui->logTable, m_errorLogPageTable);
+
+        m_errorLogDetailBrowser = new QTextBrowser(splitter);
+        m_errorLogDetailBrowser->setMarkdown(QStringLiteral("# 日志详情\n\n请选择一条日志记录。"));
+
+        splitter->addWidget(m_errorLogPageTable);
+        splitter->addWidget(m_errorLogDetailBrowser);
+        splitter->setStretchFactor(0, 3);
+        splitter->setStretchFactor(1, 2);
+        layout->addWidget(splitter);
+
+        connect(m_errorLogPageTable, &QTableWidget::itemSelectionChanged, this, [this]() {
+            if (!m_errorLogPageTable || !m_errorLogDetailBrowser) {
+                return;
+            }
+            const int row = m_errorLogPageTable->currentRow();
+            if (row < 0) {
+                m_errorLogDetailBrowser->setMarkdown(QStringLiteral("# 日志详情\n\n请选择一条日志记录。"));
+                return;
+            }
+            const QString time = m_errorLogPageTable->item(row, 0) ? m_errorLogPageTable->item(row, 0)->text() : QString();
+            const QString level = m_errorLogPageTable->item(row, 1) ? m_errorLogPageTable->item(row, 1)->text() : QString();
+            const QString message = m_errorLogPageTable->item(row, 2) ? m_errorLogPageTable->item(row, 2)->text() : QString();
+            m_errorLogDetailBrowser->setMarkdown(logDetailMarkdown(time, level, message));
+        });
+
+        m_errorLogPageIndex = addPage(m_errorLogPage, QStringLiteral("错误日志"), false);
+    };
 
     if (ui->navSetting) {
         connect(ui->navSetting, &QToolButton::clicked, this, [this]() {
@@ -950,6 +1148,30 @@ MainWindow::MainWindow(QWidget *parent)
         });
     }
 
+    if (ui->tabProjectInfo) {
+        connect(ui->tabProjectInfo, &QToolButton::clicked, this, [this, ensureProjectInfoPage]() {
+            if (!ui || !ui->pagesStack) {
+                return;
+            }
+            ensureProjectInfoPage();
+            if (m_projectInfoPageIndex >= 0 && m_projectInfoPageIndex < ui->pagesStack->count()) {
+                ui->pagesStack->setCurrentIndex(m_projectInfoPageIndex);
+            }
+        });
+    }
+
+    if (ui->tabErrorLog) {
+        connect(ui->tabErrorLog, &QToolButton::clicked, this, [this, ensureErrorLogPage]() {
+            if (!ui || !ui->pagesStack) {
+                return;
+            }
+            ensureErrorLogPage();
+            if (m_errorLogPageIndex >= 0 && m_errorLogPageIndex < ui->pagesStack->count()) {
+                ui->pagesStack->setCurrentIndex(m_errorLogPageIndex);
+            }
+        });
+    }
+
     if (ui->tabStatistics) {
         connect(ui->tabStatistics, &QToolButton::clicked, this, [this]() {
             if (!ui || !ui->pagesStack) {
@@ -965,6 +1187,24 @@ MainWindow::MainWindow(QWidget *parent)
             }
             if (m_taskLogStatisticsPageIndex >= 0 && m_taskLogStatisticsPageIndex < ui->pagesStack->count()) {
                 ui->pagesStack->setCurrentIndex(m_taskLogStatisticsPageIndex);
+            }
+        });
+    }
+
+    if (ui->tabFlagRule) {
+        connect(ui->tabFlagRule, &QToolButton::clicked, this, [this]() {
+            if (!ui || !ui->pagesStack) {
+                return;
+            }
+            if (!m_runtimeRecordsPage) {
+                m_runtimeRecordsPage = new RuntimeRecordsPage();
+                m_runtimeRecordsPageIndex = addPage(m_runtimeRecordsPage, QStringLiteral("运行记录"), false);
+            }
+            if (m_runtimeRecordsPage) {
+                m_runtimeRecordsPage->refresh();
+            }
+            if (m_runtimeRecordsPageIndex >= 0 && m_runtimeRecordsPageIndex < ui->pagesStack->count()) {
+                ui->pagesStack->setCurrentIndex(m_runtimeRecordsPageIndex);
             }
         });
     }
@@ -1290,24 +1530,15 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     if (auto *table = ui->logTable) {
-        table->setColumnWidth(0, 160);
-        table->setColumnWidth(1, 90);
-        table->horizontalHeader()->setStretchLastSection(true);
-        table->verticalHeader()->setVisible(false);
-
         if (auto *dispatcher = Logger::dispatcher()) {
             connect(dispatcher, &LogDispatcher::logAdded, this,
                     [this](const QString &time, const QString &level, const QString &message) {
-                        auto *t = ui->logTable;
-                        if (!t) {
-                            return;
+                        appendLogRow(ui->logTable, time, level, message);
+                        appendLogRow(m_errorLogPageTable, time, level, message);
+                        if (m_errorLogDetailBrowser && m_errorLogPageTable && m_errorLogPageTable->rowCount() == 1) {
+                            m_errorLogPageTable->selectRow(0);
+                            m_errorLogDetailBrowser->setMarkdown(logDetailMarkdown(time, level, message));
                         }
-                        const int row = t->rowCount();
-                        t->insertRow(row);
-                        t->setItem(row, 0, new QTableWidgetItem(time));
-                        t->setItem(row, 1, new QTableWidgetItem(level));
-                        t->setItem(row, 2, new QTableWidgetItem(message));
-                        t->scrollToBottom();
                     });
         }
     }

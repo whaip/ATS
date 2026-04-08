@@ -93,7 +93,7 @@
           <item>
            <widget class="QToolButton" name="tabStatistics">
             <property name="text">
-             <string>统计</string>
+             <string>统计结果</string>
             </property>
             <property name="checkable">
              <bool>false</bool>
@@ -103,7 +103,7 @@
           <item>
            <widget class="QToolButton" name="tabFlagRule">
             <property name="text">
-             <string>标志与规则</string>
+             <string>运行记录</string>
             </property>
             <property name="checkable">
              <bool>false</bool>

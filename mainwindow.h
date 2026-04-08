@@ -30,6 +30,10 @@ class ConfigurationWindow;
 class JYThreadManager;
 class JYDeviceWorker;
 class TaskLogStatisticsPage;
+class RuntimeRecordsPage;
+class QTextBrowser;
+class QTableWidget;
+class QWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -67,8 +71,17 @@ private:
     int m_configurationPageIndex = -1;
     BoardManager *m_boardManagerPage = nullptr;
     int m_boardManagerPageIndex = -1;
+    QWidget *m_errorLogPage = nullptr;
+    int m_errorLogPageIndex = -1;
+    QTableWidget *m_errorLogPageTable = nullptr;
+    QTextBrowser *m_errorLogDetailBrowser = nullptr;
+    QWidget *m_projectInfoPage = nullptr;
+    int m_projectInfoPageIndex = -1;
+    QTextBrowser *m_projectInfoBrowser = nullptr;
     TaskLogStatisticsPage *m_taskLogStatisticsPage = nullptr;
     int m_taskLogStatisticsPageIndex = -1;
+    RuntimeRecordsPage *m_runtimeRecordsPage = nullptr;
+    int m_runtimeRecordsPageIndex = -1;
     bool m_irStationRunning = false;
     JYThreadManager *m_jyManager = nullptr;
     QMap<JYDeviceKind, JYDeviceWorker *> m_jyWorkers;

@@ -43,6 +43,7 @@ SOURCES += \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.cpp \
     FaultDiagnostic/TaskLogging/testtasklogservice.cpp \
     FaultDiagnostic/TaskLogging/tasklogstatisticspage.cpp \
+    FaultDiagnostic/RuntimeRecords/runtimerecordspage.cpp \
     FaultDiagnostic/TaskTransport/tasklogtransportsettings.cpp \
     FaultDiagnostic/TaskTransport/tasklogtransportservice.cpp \
     FaultDiagnostic/TaskTransport/tasklogtransportwidget.cpp \
@@ -115,6 +116,7 @@ HEADERS += \
     FaultDiagnostic/Diagnostics/diagnosticpluginmanager.h \
     FaultDiagnostic/TaskLogging/testtasklogservice.h \
     FaultDiagnostic/TaskLogging/tasklogstatisticspage.h \
+    FaultDiagnostic/RuntimeRecords/runtimerecordspage.h \
     FaultDiagnostic/TaskTransport/tasklogtransportsettings.h \
     FaultDiagnostic/TaskTransport/tasklogtransportservice.h \
     FaultDiagnostic/TaskTransport/tasklogtransportwidget.h \
@@ -173,6 +175,7 @@ FORMS += \
     ComponentsDetect/componentsdetect.ui \
     FaultDiagnostic/UI/configurationwindow.ui \
     FaultDiagnostic/UI/faultdiagnostic.ui \
+    FaultDiagnostic/RuntimeRecords/runtimerecordspage.ui \
     FaultDiagnostic/TaskLogging/tasklogstatisticspage.ui \
     FaultDiagnostic/TaskTransport/tasklogtransportwidget.ui \
     FaultDiagnostic/Workflow/PortAllocation/portallocationreviewdialog.ui \

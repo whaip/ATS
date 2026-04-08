@@ -203,6 +203,7 @@ class BoardEmbeddingExport(nn.Module):
 
 def train_model(dataset: BoardRoiDataset, epochs: int, batch_size: int, embedding_dim: int, lr: float):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"[train] device={device}", flush=True)
     model = BoardEmbeddingNet(len(dataset.class_to_index), embedding_dim).to(device)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)

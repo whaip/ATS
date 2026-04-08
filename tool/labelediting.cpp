@@ -77,8 +77,6 @@ LabelEditing::~LabelEditing()
 
 void LabelEditing::loadImage(const QImage &image)
 {
-    qDebug() << "LabelEditing::loadImage - 开始加载图像";
-    
     // 完全清除场景中的所有项，确保干净的起始状态
     scene->clear();
     
@@ -611,7 +609,7 @@ void LabelEditing::on_finishButton_clicked()
     }
     clearAllSelection();
     is_editing = false;
-    on_createRectButton_clicked();
+    on_editButton_clicked();
     requestLabelTableRefresh();
 }
 
@@ -897,7 +895,7 @@ void LabelEditing::setupUI()
     lineWidthComboBox->setGeometry(nextX, 10, lineWidthComboBox->minimumWidth(), 30);
 
     // 初始高亮“创建矩形”模式
-    createRectButton->setChecked(true);
+    on_editButton_clicked();
 }
 
 void LabelEditing::updateRectItemStyle(LabelRectItem* item)
